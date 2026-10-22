@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "goDZDa8EyO7IGbT_m7ipq"
+uri = "file://generated-artifacts/nsw-fire-district-checker-local.zip"
+type = "unspecified"
+title = "Download the local NSW Fire District Checker"
+description = "Ready-to-run local website package with Windows, macOS and Linux launchers. Uses live NSW GURAS, fire-district and OpenStreetMap services; an internet connection is required."
+logical_id = "9fe27fb6-fe39-4324-aff3-a183a5bac435"
+content_hash = "sha256:32df4638618224f4d34a7db5ee9f10de9b1fedf3f4744250fa0a7b5d68f15e02"
+size = 135687
+mtime_ms = 1792705332458
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/9fe27fb6-fe39-4324-aff3-a183a5bac435/e20bd998-1ba5-44e9-a8e5-58a7cf159193"
+storage_version_token = "1792705357047840"
+content_type = "application/octet-stream"
