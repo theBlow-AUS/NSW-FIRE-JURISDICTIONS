@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { LocateFixed, MapPin, Minus, Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type CSSProperties } from 'react';
+import { LocateFixed, MapPin, Minus, Plus, X } from 'lucide-react';
 
 export type MapPoint = { latitude: number; longitude: number };
 
@@ -7,6 +7,7 @@ type Props = {
   point: MapPoint | null;
   focusPoint: MapPoint | null;
   onPointChange: (point: MapPoint) => void;
+  popup: ReactNode;
 };
 
 const TILE_SIZE = 256;
@@ -29,10 +30,11 @@ function unproject(x: number, y: number, zoom: number): MapPoint {
   return { latitude, longitude };
 }
 
-export default function MapPanel({ point, focusPoint, onPointChange }: Props) {
+export default function MapPanel({ point, focusPoint, onPointChange, popup }: Props) {
   const [center, setCenter] = useState<MapPoint>(DEFAULT_CENTER);
   const [zoom, setZoom] = useState(10);
   const [dragging, setDragging] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(true);
   const [dimensions, setDimensions] = useState({ width: 800, height: 560 });
   const pointer = useRef<{ x: number; y: number; center: MapPoint; moved: boolean } | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -111,6 +113,15 @@ export default function MapPanel({ point, focusPoint, onPointChange }: Props) {
     left: pin.x - mapCenter.x + dimensions.width / 2,
     top: pin.y - mapCenter.y + dimensions.height / 2,
   } : null;
+  const popupWidth = Math.min(300, dimensions.width - 32);
+  const popupLeft = pinPosition ? Math.max(popupWidth / 2 + 16, Math.min(dimensions.width - popupWidth / 2 - 16, pinPosition.left)) : 0;
+  const popupBelow = Boolean(pinPosition && pinPosition.top < 210);
+  const pinVisible = pinPosition && pinPosition.left >= 0 && pinPosition.left <= dimensions.width
+    && pinPosition.top >= 0 && pinPosition.top <= dimensions.height;
+
+  useEffect(() => {
+    setPopupOpen(true);
+  }, [point]);
 
   useEffect(() => {
     if (!focusPoint) return;
@@ -150,13 +161,28 @@ export default function MapPanel({ point, focusPoint, onPointChange }: Props) {
           </div>
           <div className="map-wash" />
           {pinPosition && (
-            <div className="map-pin" aria-hidden="true" data-testid="map-location-pin"
+            <button type="button" className="map-pin" aria-label="Show coverage result" data-testid="map-location-pin"
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              onClick={() => setPopupOpen(true)}
               style={{ left: pinPosition.left, top: pinPosition.top }}>
               <MapPin />
-            </div>
+            </button>
           )}
           {!displayedPoint && <div className="map-crosshair" aria-hidden="true" />}
         </div>
+        {pinPosition && pinVisible && popupOpen && (
+          <div className={`pin-popup ${popupBelow ? 'pin-popup-below' : ''}`} role="region" aria-label="Coverage at selected pin"
+            data-testid="map-coverage-popup" style={{
+              left: popupLeft,
+              top: popupBelow ? pinPosition.top + 14 : pinPosition.top - 52,
+              width: popupWidth,
+              '--popup-tail-left': `${pinPosition.left - popupLeft + popupWidth / 2}px`,
+            } as CSSProperties}>
+            <button className="popup-close" type="button" aria-label="Close map result" data-testid="button-close-map-result" onClick={() => setPopupOpen(false)}><X size={14} /></button>
+            <div aria-live="polite">{popup}</div>
+          </div>
+        )}
         <div className="map-topline"><LocateFixed size={13} /> NEW SOUTH WALES <span>·</span> OSM</div>
         <div className="map-controls">
           <button type="button" aria-label="Zoom in" onClick={() => setZoomBounded(1)} data-testid="button-zoom-in"><Plus size={16} /></button>

@@ -4,9 +4,10 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
-import { AlertCircle, AlertTriangle, Check, ChevronRight, Flame, Info, LoaderCircle, MapPin, Search, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Flame, Info, MapPin, Search, X } from 'lucide-react';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import MapPanel, { type MapPoint } from './MapPanel';
+import CoverageContent from './CoverageContent';
 import {
   ARCGIS_SOURCE_LINK,
   confirmNsw,
@@ -140,23 +141,14 @@ function Home() {
           <span className="brand-mark"><Flame size={20} strokeWidth={2.1} /></span>
           <span><span className="brand-name">NSW Fire Coverage</span><span className="brand-kicker">Location checker</span></span>
         </a>
-        <div className="topbar-tag"><span className="online-dot" /> NSW RESIDENT TOOL</div>
       </header>
       <main className="page">
-        <section className="intro">
-          <div>
-            <div className="eyebrow">Know who covers your street</div>
-            <h1>Fire coverage, <span style={{ color: '#a8442d' }}>at a glance.</span></h1>
-            <p className="intro-copy">Find the indicative fire service coverage for an address anywhere in New South Wales.</p>
-          </div>
-          <div className="coverage-chip"><ShieldCheck size={15} /> FRNSW districts · NSW-wide location search</div>
-        </section>
-
         <section className="workspace" aria-label="Fire coverage location checker">
-          <aside className="control-panel">
+          <section className="search-panel" aria-label="Address search">
             <div className="section-label">
-              <strong>Find a location</strong><span className="step-number">01 / ADDRESS</span>
+              <strong>Search a NSW address</strong>
             </div>
+            <div className="search-row">
             <div className="search-wrap">
               <Search className="search-icon" size={16} />
               <input
@@ -192,16 +184,20 @@ function Home() {
                 </div>
               )}
             </div>
-            <button type="button" onClick={() => void performSearch()} disabled={searching || query.trim().length < 3} data-testid="button-search-address" style={{ width: '100%', marginTop: 10, padding: '11px 16px', borderRadius: 8, background: '#344d42', color: '#fff', fontWeight: 600, cursor: searching ? 'wait' : 'pointer', opacity: query.trim().length < 3 ? 0.5 : 1 }}>
+            <button className="search-button" type="button" onClick={() => void performSearch()} disabled={searching || query.trim().length < 3} data-testid="button-search-address">
               {searching ? 'Searching…' : 'Search address'}
             </button>
-            <p className="helper"><Info size={12} /> Enter an address or place name in NSW, press Search, then choose a match. You can also click the map to drop a pin.</p>
+            </div>
+            <p className="helper"><Info size={12} /> Search an address or tap the map to drop a pin.</p>
             {searching && <div className="result-loading" role="status" data-testid="status-searching"><span className="skeleton" /> Finding NSW addresses…</div>}
             {noMatches && !searching && <div className="result-copy" role="status" data-testid="status-no-matches"><strong>No matching addresses</strong><p>Try a street address, suburb or NSW town. You can also select a point directly on the map.</p></div>}
             {searchError && <div className="result-copy result-error" role="alert" data-testid="status-search-error"><strong>Address search unavailable</strong><p>{searchError}</p></div>}
 
-            <hr className="rule" />
-            <div className="section-label"><strong>Selected location</strong><span className="step-number">02 / CONFIRM</span></div>
+          </section>
+          <MapPanel point={pin} focusPoint={focusPoint} onPointChange={movePin}
+            popup={<CoverageContent coverage={coverage} loading={Boolean(isLoadingResult)} compact />} />
+          <section className="control-panel" aria-label="Selected location and coverage result">
+            <div className="section-label"><strong>Selected location</strong></div>
             <div className="selection-card" data-testid="panel-selected-location">
               {selected ? (
                 <div className="selected-address">
@@ -222,39 +218,7 @@ function Home() {
                 {coverage?.checkedAt && <span className="result-status"><span className="online-dot" /> {coverage.checkedAt}</span>}
               </div>
               <div className="result-body">
-                {!selected && !coverage && (
-                  <div className="result-empty" data-testid="status-awaiting-location">
-                    <span className="result-emblem"><ShieldCheck size={18} /></span>
-                    <span className="result-copy"><strong>Ready when you are</strong><p>Your indicative coverage result will appear here after you choose a location.</p></span>
-                  </div>
-                )}
-                {selected && isLoadingResult && (
-                  <div className="result-loading" role="status" data-testid="status-coverage-loading"><LoaderCircle size={16} /><span className="skeleton" /> Checking location…</div>
-                )}
-                {coverage && !isLoadingResult && coverage.kind === 'frnsw' && (
-                  <div className="result-empty" data-testid="status-coverage-frnsw">
-                    <span className="result-emblem"><Check size={18} /></span>
-                    <span className="result-copy"><strong>Within an FRNSW fire district</strong><p>{coverage.district ? `Mapped district: ${coverage.district}.` : 'This point intersects a mapped Fire and Rescue NSW district.'} This is an indicative map result, not an operational response guarantee.</p></span>
-                  </div>
-                )}
-                {coverage && !isLoadingResult && coverage.kind === 'rural' && (
-                  <div className="result-empty result-unknown" data-testid="status-coverage-rural">
-                    <span className="result-emblem"><Info size={18} /></span>
-                    <span className="result-copy"><strong>Rural Fire District (indicative)</strong><p>This NSW point is outside the mapped FRNSW Fire Districts, so RFD coverage is inferred. A separate RFD boundary has not been verified. Confirm with the relevant fire service if certainty is needed.</p></span>
-                  </div>
-                )}
-                {coverage && !isLoadingResult && coverage.kind === 'outside' && (
-                  <div className="result-empty result-unknown" data-testid="status-coverage-outside">
-                    <span className="result-emblem"><MapPin size={18} /></span>
-                    <span className="result-copy"><strong>Outside New South Wales</strong><p>This tool only checks NSW fire district data. Choose a location in NSW to see an indicative result.</p></span>
-                  </div>
-                )}
-                {coverage && !isLoadingResult && coverage.kind === 'error' && (
-                  <div className="result-empty result-error" data-testid="status-coverage-error">
-                    <span className="result-emblem"><AlertCircle size={18} /></span>
-                    <span className="result-copy"><strong>Coverage check unavailable</strong><p>{coverage.message}</p></span>
-                  </div>
-                )}
+                <CoverageContent coverage={coverage} loading={Boolean(isLoadingResult)} />
               </div>
             </div>
             <div className="disclaimer" data-testid="text-indicative-disclaimer"><AlertTriangle size={14} /><span><strong>Indicative only.</strong> Boundaries can change and the mapped data may not be current or entirely accurate. This does not confirm an emergency response area or define Rural Fire District boundaries. In an emergency, call 000.</span></div>
@@ -262,8 +226,7 @@ function Home() {
               <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer" data-testid="link-fire-data-source">FRNSW Fire Districts source</a>
               <a href="https://nominatim.org/" target="_blank" rel="noreferrer" data-testid="link-geocoder-source">Geocoding by Nominatim</a>
             </div>
-          </aside>
-          <MapPanel point={pin} focusPoint={focusPoint} onPointChange={movePin} />
+          </section>
         </section>
       </main>
       <footer className="footer">
