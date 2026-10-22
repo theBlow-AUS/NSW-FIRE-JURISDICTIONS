@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "NSW Fire District Checker"
+description = "An indicative NSW address and map lookup that checks whether a location falls within Fire and Rescue NSW coverage or a Rural Fire District using public spatial boundary data."
+version = "1.0.0"
+id = "artifacts/nsw-fire-district-checker"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22037
+
+[services.development]
+run = "pnpm --filter @workspace/nsw-fire-district-checker run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/nsw-fire-district-checker", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/nsw-fire-district-checker/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22037"
+BASE_PATH = "/"
