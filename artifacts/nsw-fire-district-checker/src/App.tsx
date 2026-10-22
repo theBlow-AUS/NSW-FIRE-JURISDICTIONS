@@ -12,22 +12,22 @@ import {
   ARCGIS_SOURCE_LINK,
   confirmNsw,
   lookupCoverage,
-  searchAddresses,
-  reverseAddress,
-  type AddressSuggestion,
   type CoverageResult,
   type NswConfirmation,
 } from './fire-service';
+import { ADDRESS_SOURCE_LINK, searchAddresses, reverseAddress, type AddressSuggestion } from './address-service';
 
 const queryClient = new QueryClient();
 type ChosenLocation = {
   address: string;
   point: MapPoint;
   nsw: NswConfirmation;
+  matchNote?: string;
 };
 
 function Home() {
   const [query, setQuery] = useState('');
+  const [locality, setLocality] = useState('');
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
@@ -51,7 +51,8 @@ function Home() {
       setSearchError('');
       setNoMatches(false);
       try {
-        const results = await searchAddresses(term, controller.signal);
+        const results = await searchAddresses(term, locality, controller.signal);
+        if (controller.signal.aborted) return;
         setSuggestions(results);
         setNoMatches(results.length === 0);
       } catch (error) {
@@ -76,11 +77,13 @@ function Home() {
       address: place.displayName,
       point,
       nsw: confirmNsw(place.displayName, place.address),
+      matchNote: place.matchNote,
     };
     setSelected(chosen);
     setPin(point);
     setFocusPoint(point);
     setQuery(place.shortName);
+    setLocality([place.address.suburb, place.address.postcode].filter(Boolean).join(' '));
     setSuggestions([]);
     setNoMatches(false);
     setSearchError('');
@@ -90,6 +93,7 @@ function Home() {
   const movePin = useCallback(async (point: MapPoint) => {
     const requestId = ++lookupSequence.current;
     setPin(point);
+    setSelected(null);
     setCoverage({ kind: 'error', checkedAt: '', message: 'Confirming the address and checking coverage…' });
     try {
       const reverse = await reverseAddress(point.latitude, point.longitude);
@@ -98,6 +102,7 @@ function Home() {
         address: reverse.displayName,
         point,
         nsw: confirmNsw(reverse.displayName, reverse.address),
+        matchNote: reverse.matchNote,
       };
       setSelected(chosen);
       const result = await lookupCoverage(point.latitude, point.longitude, chosen.nsw);
@@ -129,6 +134,7 @@ function Home() {
     setPin(null);
     setCoverage(null);
     setQuery('');
+    setLocality('');
     setSuggestions([]);
     inputRef.current?.focus();
   };
@@ -156,7 +162,7 @@ function Home() {
                 className="search-input"
                 type="search"
                 autoComplete="off"
-                placeholder="Try 1 Martin Place, Sydney"
+                placeholder="346 Panorama Avenue"
                 value={query}
                  onChange={(event) => { searchController.current?.abort(); setSearching(false); setQuery(event.target.value); setSearchError(''); setSuggestions([]); setNoMatches(false); }}
                 onKeyDown={(event) => {
@@ -166,7 +172,7 @@ function Home() {
                      void performSearch();
                    }
                 }}
-                aria-label="Search a NSW address"
+                aria-label="House number and street"
                 aria-expanded={suggestions.length > 0}
                 data-testid="input-address-search"
               />
@@ -177,20 +183,25 @@ function Home() {
                     <button type="button" className="suggestion" key={suggestion.id} role="option"
                       onClick={() => chooseAddress(suggestion)} data-testid={`suggestion-address-${suggestion.id}`}>
                       <MapPin size={14} />
-                      <span><span className="suggestion-title">{suggestion.shortName}</span><span className="suggestion-sub">{suggestion.displayName}</span></span>
+                      <span><span className="suggestion-title">{suggestion.shortName}</span><span className="suggestion-sub">{suggestion.displayName}</span>{suggestion.matchNote && <span className="suggestion-note">{suggestion.matchNote}</span>}</span>
                       <ChevronRight size={14} style={{ marginLeft: 'auto', color: '#8c9186' }} />
                     </button>
                   ))}
                 </div>
               )}
             </div>
+            <input className="search-input locality-input" type="text" value={locality}
+              placeholder="Suburb or postcode" aria-label="Suburb or postcode" autoComplete="off"
+              data-testid="input-address-locality"
+              onChange={(event) => { searchController.current?.abort(); setSearching(false); setLocality(event.target.value); setSearchError(''); setSuggestions([]); setNoMatches(false); }}
+              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void performSearch(); } }} />
             <button className="search-button" type="button" onClick={() => void performSearch()} disabled={searching || query.trim().length < 3} data-testid="button-search-address">
               {searching ? 'Searching…' : 'Search address'}
             </button>
             </div>
-            <p className="helper"><Info size={12} /> Search an address or tap the map to drop a pin.</p>
+            <p className="helper"><Info size={12} /> GURAS property addresses: enter the house number, street and suburb/postcode, or tap the map.</p>
             {searching && <div className="result-loading" role="status" data-testid="status-searching"><span className="skeleton" /> Finding NSW addresses…</div>}
-            {noMatches && !searching && <div className="result-copy" role="status" data-testid="status-no-matches"><strong>No matching addresses</strong><p>Try a street address, suburb or NSW town. You can also select a point directly on the map.</p></div>}
+            {noMatches && !searching && <div className="result-copy" role="status" data-testid="status-no-matches"><strong>No matching property address</strong><p>No GURAS address was returned for that house number. Check the number, street and suburb/postcode, or drop a pin. Nearby house numbers are not substituted.</p></div>}
             {searchError && <div className="result-copy result-error" role="alert" data-testid="status-search-error"><strong>Address search unavailable</strong><p>{searchError}</p></div>}
 
           </section>
@@ -202,12 +213,12 @@ function Home() {
               {selected ? (
                 <div className="selected-address">
                   <MapPin size={16} />
-                  <div><strong data-testid="text-selected-address">{selected.address}</strong><small>{selected.point.latitude.toFixed(5)}, {selected.point.longitude.toFixed(5)}</small></div>
+                  <div><strong data-testid="text-selected-address">{selected.address}</strong><small>{selected.point.latitude.toFixed(5)}, {selected.point.longitude.toFixed(5)}</small>{selected.matchNote && <p className="address-match-note" data-testid="text-address-match-note">{selected.matchNote}</p>}</div>
                 </div>
               ) : (
                 <div className="selection-empty">
                   <span className="pin-icon"><MapPin size={16} /></span>
-                  <span><strong>Nothing pinned yet</strong>Search for an address or click the map to begin.</span>
+                  <span><strong>{pin ? 'Dropped pin' : 'Nothing pinned yet'}</strong>{pin ? 'Finding the nearby GURAS address…' : 'Search for an address or click the map to begin.'}</span>
                 </div>
               )}
             </div>
@@ -221,17 +232,17 @@ function Home() {
                 <CoverageContent coverage={coverage} loading={Boolean(isLoadingResult)} />
               </div>
             </div>
-            <div className="disclaimer" data-testid="text-indicative-disclaimer"><AlertTriangle size={14} /><span><strong>Indicative only.</strong> Boundaries can change and the mapped data may not be current or entirely accurate. This does not confirm an emergency response area or define Rural Fire District boundaries. In an emergency, call 000.</span></div>
+            <div className="disclaimer" data-testid="text-indicative-disclaimer"><AlertTriangle size={14} /><span><strong>Indicative only.</strong> Boundaries can change and the mapped data may not be current or entirely accurate. GURAS address points locate properties and may not coincide with a dwelling. This does not confirm an emergency response area or define Rural Fire District boundaries. In an emergency, call 000.</span></div>
             <div className="panel-links">
               <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer" data-testid="link-fire-data-source">FRNSW Fire Districts source</a>
-              <a href="https://nominatim.org/" target="_blank" rel="noreferrer" data-testid="link-geocoder-source">Geocoding by Nominatim</a>
+              <a href={ADDRESS_SOURCE_LINK} target="_blank" rel="noreferrer" data-testid="link-geocoder-source">NSW GURAS addressing source</a>
             </div>
           </section>
         </section>
       </main>
       <footer className="footer">
         <span>Public reference tool · Coverage is indicative and may not reflect current operational arrangements.</span>
-        <span>Data: <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer">NSW Spatial Services</a> · Geocoder: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></span>
+        <span>Boundaries: <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer">NSW Spatial Services</a> · Addressing: <a href={ADDRESS_SOURCE_LINK} target="_blank" rel="noreferrer">NSW GURAS</a> · Map: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></span>
       </footer>
     </div>
   );

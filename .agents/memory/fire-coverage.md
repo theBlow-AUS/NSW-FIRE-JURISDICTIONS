@@ -15,6 +15,12 @@ The user wants the tool, not sales-style introductory content: search above the 
 
 **How to apply:** Keep the general accuracy warning and inferred-coverage explanation separate from the Rural Fire District heading.
 
+The user wants house-number street-address lookup using NSW GURAS, not a general place-name geocoder.
+
+**Why:** The user explicitly requested the NSW GURAS spatial dataset for addressing.
+
+**How to apply:** Use official GURAS-backed services. Never silently substitute a different house number; NSW's address service can return the nearest number when an exact match is absent. Address points identify properties, not necessarily dwelling locations.
+
 The supplied FRNSW_Stations MapServer sharing URL cannot reliably support point queries. Its public MapServer exposes metadata but query and identify operations returned server errors. NSW's sibling FRNSW_Locations FeatureServer exposes a working Fire_Districts polygon layer with the same district names and geographic extent.
 
 **Why:** Multiple metadata, query, and identify approaches failed on the supplied tile-oriented service; the query-enabled public sibling returned a Sydney district hit and an empty rural-point result.

@@ -1,1 +1,1 @@
-- [Fire coverage interpretation](fire-coverage.md) — NSW-only indicative lookup; no FRNSW polygon hit is an inferred RFD result, not a verified rural boundary.
+- [NSW fire checker rules](fire-coverage.md) — GURAS addressing, map-first layout, and safe interpretation of FRNSW/RFD coverage.
