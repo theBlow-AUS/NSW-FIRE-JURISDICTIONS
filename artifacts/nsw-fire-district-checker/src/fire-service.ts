@@ -1,11 +1,22 @@
 export const FIRE_SERVICE_URL =
-  'https://portal.data.nsw.gov.au/arcgis/rest/services/Hosted/FRNSW_Stations/MapServer';
+  'https://portal.data.nsw.gov.au/arcgis/rest/services/Hosted/FRNSW_Locations/FeatureServer';
 export const DISTRICT_LAYER_URL = `${FIRE_SERVICE_URL}/1`;
 export const STATIONS_LAYER_URL = `${FIRE_SERVICE_URL}/0`;
 export const ARCGIS_SOURCE_LINK =
-  'https://portal.data.nsw.gov.au/arcgis/rest/services/Hosted/FRNSW_Stations/MapServer';
+  FIRE_SERVICE_URL;
 export const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 export const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
+
+// Public Nominatim requires deliberate searches, with at most one request/second.
+let nextGeocodeRequest = 0;
+async function geocodeFetch(url: string, options: RequestInit): Promise<Response> {
+  const now = Date.now();
+  const delay = Math.max(0, nextGeocodeRequest - now);
+  nextGeocodeRequest = now + delay + 1100;
+  if (delay) await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+  options.signal?.throwIfAborted();
+  return fetch(url, options);
+}
 
 export type CoverageKind = 'frnsw' | 'rural' | 'outside' | 'error';
 export type CoverageResult = {
@@ -41,6 +52,7 @@ export async function lookupCoverage(
 
   const params = new URLSearchParams({
     f: 'json',
+    where: '1=1',
     geometry: JSON.stringify({ x: longitude, y: latitude, spatialReference: { wkid: 4326 } }),
     geometryType: 'esriGeometryPoint',
     inSR: '4326',
@@ -49,7 +61,9 @@ export async function lookupCoverage(
     returnGeometry: 'false',
   });
   try {
-    const response = await fetch(`${DISTRICT_LAYER_URL}/query?${params.toString()}`);
+    const response = await fetch(`${DISTRICT_LAYER_URL}/query?${params.toString()}`, {
+      signal: AbortSignal.timeout(20000),
+    });
     if (!response.ok) throw new Error(`Coverage service returned HTTP ${response.status}.`);
     const data = (await response.json()) as ArcGisFeatureCollection;
     if (data.error) throw new Error(data.error.message || 'The coverage service returned an error.');
@@ -93,8 +107,8 @@ export async function searchAddresses(query: string, signal?: AbortSignal): Prom
     viewbox: '140.999,-28.0,153.64,-37.7',
     bounded: '1',
   });
-  const response = await fetch(`${NOMINATIM_SEARCH_URL}?${params.toString()}`, {
-    signal,
+  const response = await geocodeFetch(`${NOMINATIM_SEARCH_URL}?${params.toString()}`, {
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000),
     headers: { Accept: 'application/json' },
   });
   if (!response.ok) throw new Error(`Address search returned HTTP ${response.status}.`);
@@ -130,7 +144,8 @@ export async function reverseAddress(latitude: number, longitude: number): Promi
     addressdetails: '1',
     zoom: '18',
   });
-  const response = await fetch(`${NOMINATIM_REVERSE_URL}?${params.toString()}`, {
+  const response = await geocodeFetch(`${NOMINATIM_REVERSE_URL}?${params.toString()}`, {
+    signal: AbortSignal.timeout(15000),
     headers: { Accept: 'application/json' },
   });
   if (!response.ok) throw new Error(`Reverse address lookup returned HTTP ${response.status}.`);

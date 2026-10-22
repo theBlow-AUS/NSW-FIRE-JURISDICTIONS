@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -33,28 +33,19 @@ function Home() {
   const [noMatches, setNoMatches] = useState(false);
   const [selected, setSelected] = useState<ChosenLocation | null>(null);
   const [pin, setPin] = useState<MapPoint | null>(null);
+  const [focusPoint, setFocusPoint] = useState<MapPoint | null>(null);
   const [coverage, setCoverage] = useState<CoverageResult | null>(null);
   const lookupSequence = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const suppressSearch = useRef(false);
-
-  useEffect(() => {
+  const searchController = useRef<AbortController | null>(null);
+  const lastSearchTime = useRef(0);
+  const performSearch = async () => {
     const term = query.trim();
-    if (suppressSearch.current) {
-      suppressSearch.current = false;
-      setSuggestions([]);
-      setNoMatches(false);
-      setSearching(false);
-      return;
-    }
-    if (term.length < 3) {
-      setSuggestions([]);
-      setNoMatches(false);
-      setSearching(false);
-      return;
-    }
+    if (term.length < 3 || searching || Date.now() - lastSearchTime.current < 1100) return;
+    lastSearchTime.current = Date.now();
+    searchController.current?.abort();
     const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
+    searchController.current = controller;
       setSearching(true);
       setSearchError('');
       setNoMatches(false);
@@ -69,12 +60,7 @@ function Home() {
       } finally {
         if (!controller.signal.aborted) setSearching(false);
       }
-    }, 350);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, selected?.address]);
+  };
 
   const runLookup = useCallback(async (location: ChosenLocation) => {
     const requestId = ++lookupSequence.current;
@@ -90,9 +76,9 @@ function Home() {
       point,
       nsw: confirmNsw(place.displayName, place.address),
     };
-    suppressSearch.current = true;
     setSelected(chosen);
     setPin(point);
+    setFocusPoint(point);
     setQuery(place.shortName);
     setSuggestions([]);
     setNoMatches(false);
@@ -112,27 +98,31 @@ function Home() {
         point,
         nsw: confirmNsw(reverse.displayName, reverse.address),
       };
-      suppressSearch.current = true;
       setSelected(chosen);
       const result = await lookupCoverage(point.latitude, point.longitude, chosen.nsw);
       if (requestId === lookupSequence.current) setCoverage(result);
     } catch (error) {
       if (requestId !== lookupSequence.current) return;
-      suppressSearch.current = true;
       setSelected({
         address: 'Address could not be resolved at this point',
         point,
         nsw: 'unknown',
       });
-      setCoverage({
-        kind: 'error',
-        checkedAt: new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }),
-        message: error instanceof Error ? error.message : 'Reverse address lookup is unavailable.',
-      });
+      const result = await lookupCoverage(point.latitude, point.longitude, 'unknown');
+      if (requestId === lookupSequence.current) {
+        setCoverage(result.kind === 'error' ? {
+          ...result,
+          message: `${result.message ?? ''} Address lookup: ${error instanceof Error ? error.message : 'unavailable'}`,
+        } : result);
+      }
     }
   }, []);
 
   const clearSelection = () => {
+    searchController.current?.abort();
+    setSearching(false);
+    setSearchError('');
+    setNoMatches(false);
     lookupSequence.current += 1;
     setSelected(null);
     setPin(null);
@@ -176,10 +166,13 @@ function Home() {
                 autoComplete="off"
                 placeholder="Try 1 Martin Place, Sydney"
                 value={query}
-                onChange={(event) => { setQuery(event.target.value); setSearchError(''); }}
+                 onChange={(event) => { searchController.current?.abort(); setSearching(false); setQuery(event.target.value); setSearchError(''); setSuggestions([]); setNoMatches(false); }}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') setSuggestions([]);
-                  if (event.key === 'Enter' && suggestions[0]) chooseAddress(suggestions[0]);
+                   if (event.key === 'Enter') {
+                     event.preventDefault();
+                     void performSearch();
+                   }
                 }}
                 aria-label="Search a NSW address"
                 aria-expanded={suggestions.length > 0}
@@ -199,7 +192,10 @@ function Home() {
                 </div>
               )}
             </div>
-            <p className="helper"><Info size={12} /> Type an address or place name in NSW, then choose a match. You can also click the map to drop a pin.</p>
+            <button type="button" onClick={() => void performSearch()} disabled={searching || query.trim().length < 3} data-testid="button-search-address" style={{ width: '100%', marginTop: 10, padding: '11px 16px', borderRadius: 8, background: '#344d42', color: '#fff', fontWeight: 600, cursor: searching ? 'wait' : 'pointer', opacity: query.trim().length < 3 ? 0.5 : 1 }}>
+              {searching ? 'Searching…' : 'Search address'}
+            </button>
+            <p className="helper"><Info size={12} /> Enter an address or place name in NSW, press Search, then choose a match. You can also click the map to drop a pin.</p>
             {searching && <div className="result-loading" role="status" data-testid="status-searching"><span className="skeleton" /> Finding NSW addresses…</div>}
             {noMatches && !searching && <div className="result-copy" role="status" data-testid="status-no-matches"><strong>No matching addresses</strong><p>Try a street address, suburb or NSW town. You can also select a point directly on the map.</p></div>}
             {searchError && <div className="result-copy result-error" role="alert" data-testid="status-search-error"><strong>Address search unavailable</strong><p>{searchError}</p></div>}
@@ -244,7 +240,7 @@ function Home() {
                 {coverage && !isLoadingResult && coverage.kind === 'rural' && (
                   <div className="result-empty result-unknown" data-testid="status-coverage-rural">
                     <span className="result-emblem"><Info size={18} /></span>
-                    <span className="result-copy"><strong>Outside mapped FRNSW districts</strong><p>This NSW point does not intersect a mapped FRNSW Fire District. It may be within a Rural Fire District; this map does not define RFD boundaries.</p></span>
+                    <span className="result-copy"><strong>Rural Fire District (indicative)</strong><p>This NSW point is outside the mapped FRNSW Fire Districts, so RFD coverage is inferred. A separate RFD boundary has not been verified. Confirm with the relevant fire service if certainty is needed.</p></span>
                   </div>
                 )}
                 {coverage && !isLoadingResult && coverage.kind === 'outside' && (
@@ -261,13 +257,13 @@ function Home() {
                 )}
               </div>
             </div>
-            <div className="disclaimer" data-testid="text-indicative-disclaimer"><AlertTriangle size={14} /><span><strong>Indicative only.</strong> This result uses mapped FRNSW Fire Districts and does not confirm an emergency response area or define Rural Fire District boundaries. In an emergency, call 000.</span></div>
+            <div className="disclaimer" data-testid="text-indicative-disclaimer"><AlertTriangle size={14} /><span><strong>Indicative only.</strong> Boundaries can change and the mapped data may not be current or entirely accurate. This does not confirm an emergency response area or define Rural Fire District boundaries. In an emergency, call 000.</span></div>
             <div className="panel-links">
               <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer" data-testid="link-fire-data-source">FRNSW Fire Districts source</a>
               <a href="https://nominatim.org/" target="_blank" rel="noreferrer" data-testid="link-geocoder-source">Geocoding by Nominatim</a>
             </div>
           </aside>
-          <MapPanel point={pin} onPointChange={movePin} />
+          <MapPanel point={pin} focusPoint={focusPoint} onPointChange={movePin} />
         </section>
       </main>
       <footer className="footer">

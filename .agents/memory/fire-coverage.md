@@ -1,0 +1,16 @@
+---
+name: Fire coverage interpretation
+description: User scope, boundary interpretation, and public NSW ArcGIS access constraints.
+---
+
+The user wants a NSW address/map-pin checker that distinguishes FRNSW and Rural Fire District coverage, with results explicitly indicative because boundaries can change.
+
+**Why:** The user specified this scope and accuracy limitation.
+
+**How to apply:** Keep the limitation visible alongside results. A successful empty FRNSW polygon query can support an inferred RFD result only after confirming the point is in NSW; service errors must never become rural results.
+
+The supplied FRNSW_Stations MapServer sharing URL cannot reliably support point queries. Its public MapServer exposes metadata but query and identify operations returned server errors. NSW's sibling FRNSW_Locations FeatureServer exposes a working Fire_Districts polygon layer with the same district names and geographic extent.
+
+**Why:** Multiple metadata, query, and identify approaches failed on the supplied tile-oriented service; the query-enabled public sibling returned a Sydney district hit and an empty rural-point result.
+
+**How to apply:** Prefer query-enabled authoritative feature services for point intersection. Preserve attribution and be explicit that RFD coverage is inferred from exclusion, not a separate rural-boundary test.

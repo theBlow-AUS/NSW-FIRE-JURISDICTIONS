@@ -1,0 +1,1 @@
+- [Fire coverage interpretation](fire-coverage.md) — NSW-only indicative lookup; no FRNSW polygon hit is an inferred RFD result, not a verified rural boundary.

@@ -5,6 +5,7 @@ export type MapPoint = { latitude: number; longitude: number };
 
 type Props = {
   point: MapPoint | null;
+  focusPoint: MapPoint | null;
   onPointChange: (point: MapPoint) => void;
 };
 
@@ -28,7 +29,7 @@ function unproject(x: number, y: number, zoom: number): MapPoint {
   return { latitude, longitude };
 }
 
-export default function MapPanel({ point, onPointChange }: Props) {
+export default function MapPanel({ point, focusPoint, onPointChange }: Props) {
   const [center, setCenter] = useState<MapPoint>(DEFAULT_CENTER);
   const [zoom, setZoom] = useState(10);
   const [dragging, setDragging] = useState(false);
@@ -112,6 +113,12 @@ export default function MapPanel({ point, onPointChange }: Props) {
   } : null;
 
   useEffect(() => {
+    if (!focusPoint) return;
+    setCenter(focusPoint);
+    setZoom(16);
+  }, [focusPoint]);
+
+  useEffect(() => {
     const node = viewportRef.current;
     if (!node || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(([entry]) => {
@@ -159,7 +166,7 @@ export default function MapPanel({ point, onPointChange }: Props) {
         <div className="map-hint">{displayedPoint ? 'Click anywhere to move the location pin' : 'Click the map to choose a location'}</div>
         {displayedPoint && (
           <div className="coord-pill" data-testid="text-map-coordinates">
-            {displayedPoint.latitude.toFixed(4)}° {displayedPoint.latitude < 0 ? 'S' : 'N'} · {displayedPoint.longitude.toFixed(4)}° {displayedPoint.longitude < 0 ? 'W' : 'E'}
+            {Math.abs(displayedPoint.latitude).toFixed(4)}° {displayedPoint.latitude < 0 ? 'S' : 'N'} · {Math.abs(displayedPoint.longitude).toFixed(4)}° {displayedPoint.longitude < 0 ? 'W' : 'E'}
           </div>
         )}
         <div className="map-attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a></div>
