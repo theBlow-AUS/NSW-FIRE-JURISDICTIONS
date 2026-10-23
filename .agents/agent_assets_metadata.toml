@@ -28,3 +28,31 @@ mtime_ms = 1792727516510
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/393e8e14-a914-4fd9-9383-067db7fd14ae/e7a729fb-b8df-4359-89bf-28955950185d"
 storage_version_token = "1792727629115310"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "qXkBSatwjmUmnofsK87z0"
+uri = "file://generated-artifacts/standalone/NSW-Fire-Coverage-1.0.0-x64.msi"
+type = "unspecified"
+title = "NSW Fire Coverage — Windows x64 MSI"
+description = "Unsigned Windows Server 2022 / Windows 10 x64 installer. Bundles the runtime, local website/API, and scheduled RFS updater without Replit dependencies. Pilot on native Windows before wider rollout."
+logical_id = "34f67061-ecec-4b5b-b6f0-ad3901494444"
+content_hash = "sha256:c6c7ab2f6a8496c80e6f4c5b17e27189d56f51f5c314e1fa000baa3c0b9998dc"
+size = 36896768
+mtime_ms = 1792730821954
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/34f67061-ecec-4b5b-b6f0-ad3901494444/f687f31e-93f2-4f95-8c35-f948f902e4e1"
+storage_version_token = "1792730986555393"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "aAjJL4a2cXLel9Ua027FD"
+uri = "file://generated-artifacts/standalone/NSW-Fire-Coverage-Windows-x64-Installer.zip"
+type = "unspecified"
+title = "Windows installer bundle — MSI, checksum and instructions"
+description = "Contains the complete x64 MSI, SHA-256 checksum, and installation/deployment guide. Extract and install as administrator, then open http://localhost:8080. Official NSW data calls still require internet access."
+logical_id = "e4c6fd87-23a0-45eb-8fbd-f18014ecc5e4"
+content_hash = "sha256:0f697aa0b2ee6b586c03416832084759a0a3700f1a57b16963082628ec50b1b7"
+size = 36507392
+mtime_ms = 1792730896525
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/e4c6fd87-23a0-45eb-8fbd-f18014ecc5e4/cb207c86-2750-4388-b9c6-f66bebbb15ec"
+storage_version_token = "1792730987478870"
+content_type = "application/octet-stream"

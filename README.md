@@ -108,6 +108,12 @@ node artifacts/nsw-fire-district-checker/scripts/package-local-html.mjs
 
 The packager reads `/api/rfs/snapshot` through the workspace proxy without initiating a scrape. Alternatively, supply a previously saved snapshot JSON file as its first argument. It writes `artifacts/nsw-fire-district-checker/LOCAL HOST/` and `generated-artifacts/NSW-Fire-District-Checker-LOCAL-HOST.zip`; generated downloads are excluded from Git.
 
+## Stand-alone Windows MSI
+
+For a self-hosted installation on Windows Server 2022 or Windows 10 x64, see **[Stand-alone/README.md](Stand-alone/README.md)**. This separate build bundles the Windows runtime, serves the website and API locally, and runs the scheduled RFS updater with a local disk cache. It does not use Replit services or require a separately installed Node runtime/database.
+
+Live official NSW data services still require internet access. The MSI build source, service definition, configuration template, administrator scripts, and tests are in `Stand-alone`; generated installers are placed in `Stand-alone/dist` and excluded from Git.
+
 ## Attribution and limitations
 
 - Keep the NSW Department of Customer Service attribution visible when using the map.

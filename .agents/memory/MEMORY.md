@@ -2,3 +2,4 @@
 - [Local HTML exports](local-html-exports.md) — locked-down SoE needs a double-click HTML in LOCAL HOST, with no Node/server; live data calls are allowed.
 - [RFS dated sources](rfs-source-interpretation.md) — preserve permit-table wording; blocked refreshes retain dated data with visible warnings, including local exports.
 - [FRNSW station contacts](frnsw-station-contacts.md) — use the public locations layer for nearby stations; phone details live on official profiles, not the layer.
+- [Standalone Windows distribution](standalone-windows.md) — Server 2022/Windows 10 x64 MSI must be Replit-independent; live NSW services remain allowed.

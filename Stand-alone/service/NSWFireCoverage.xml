@@ -1,0 +1,19 @@
+<service>
+  <id>NSWFireCoverage</id>
+  <name>NSW Fire Coverage</name>
+  <description>Locally hosted NSW Fire Coverage checker and scheduled RFS updater. Uses official NSW public data services; no Replit runtime dependency.</description>
+  <executable>%BASE%\runtime\node.exe</executable>
+  <arguments>"%BASE%\app\server.mjs" --config "%ProgramData%\NSW Fire Coverage\server.json" --defaults "%BASE%\config\server.default.json"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <env name="NODE_ENV" value="production" />
+  <logpath>%ProgramData%\NSW Fire Coverage\logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>4</keepFiles>
+  </log>
+  <stoptimeout>30sec</stoptimeout>
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <resetfailure>1 hour</resetfailure>
+</service>
