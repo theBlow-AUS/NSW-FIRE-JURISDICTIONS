@@ -38,3 +38,9 @@ The requested RFS scraping frequency is weekly, with additional runs on the firs
 **Why:** The user explicitly replaced the daily cadence in the supplied brief.
 
 **How to apply:** Schedule the union of those dates and avoid duplicate runs when a weekly date coincides with a month-boundary run.
+
+If a location is inside an FRNSW Fire District, a fire permit is required year-round.
+
+**Why:** The user stated this rule and the official FRNSW Fire Permits page confirms it.
+
+**How to apply:** Show the year-round requirement for FRNSW results; do not substitute RFS district permit periods or contacts for the FRNSW result.

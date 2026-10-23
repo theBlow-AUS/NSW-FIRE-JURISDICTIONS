@@ -84,6 +84,8 @@ not an independently verified BFDP Active/Inactive declaration. No is not
 permission to burn and this is not a Total Fire Ban check.
 
 FRNSW polygon coverage always takes priority over LGA-based RFS data.
+If the point is inside an FRNSW Fire District, a fire permit is required
+year-round. See https://www.fire.nsw.gov.au/page.php?id=200.
 The hosted updater checks the RFS permit table on Mondays at 3 am Sydney time
 and on the first and last calendar day of each month at 3 am. Coinciding dates
 run once. This schedule does not run inside this local HTML file.

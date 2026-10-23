@@ -26,6 +26,8 @@ The app sends the selected address or pin coordinates to the FRNSW district poly
 
 **FRNSW boundaries take priority over all LGA-based RFS information.** A positive FRNSW polygon hit suppresses RFS permit-table answers and RFS contact matches for that result. If the FRNSW boundary check fails, RFS information is withheld rather than used as a fallback classification.
 
+If a point is inside an FRNSW Fire District, a fire permit is required year-round. See the official [FRNSW fire permits information](https://www.fire.nsw.gov.au/page.php?id=200).
+
 The result is indicative only. Boundary data can change, mapped address points may not coincide with dwellings, and the checker does not confirm emergency response arrangements. In an emergency, call 000.
 
 ## Data sources and services
@@ -38,6 +40,7 @@ The browser requests data directly from the following public services; the app d
 | Nearby address point for a dropped pin | NSW Spatial Services GURAS ArcGIS layer 2: [`Guras/MapServer/2`](https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/Guras/MapServer/2). |
 | Locality, postcode, and state at a dropped pin | NSW Administrative Boundaries ArcGIS layer 0: [`NSW_Administrative_Boundaries/MapServer/0`](https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Administrative_Boundaries/MapServer/0). |
 | FRNSW district coverage | NSW ArcGIS Feature Service `FRNSW_Locations`, layer 1: [`FRNSW_Locations/FeatureServer/1`](https://portal.data.nsw.gov.au/arcgis/rest/services/Hosted/FRNSW_Locations/FeatureServer/1). Layer 0 is the associated stations layer; the coverage check uses layer 1. |
+| FRNSW permit requirement | The official [FRNSW Fire Permits page](https://www.fire.nsw.gov.au/page.php?id=200) states that permits are required all year in FRNSW Fire Districts. |
 | Map background | NSW Spatial Services cached NSW Base Map tiles: [`NSW_Base_Map/MapServer`](https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer). Copyright © NSW Department of Customer Service 2020. |
 | Point-to-LGA lookup | NSW Spatial Services Administrative Boundaries, layer 1: [`LocalGovernmentArea`](https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Administrative_Boundaries/MapServer/1), queried with `esriSpatialRelIntersects` and EPSG:4326 coordinates. |
 | RFS permit requirement | The **Council name / Fire Permit required** HTML table on the official [Bush Fire Danger Period and Fire Permits page](https://www.rfs.nsw.gov.au/fire-information/BFDP). |
