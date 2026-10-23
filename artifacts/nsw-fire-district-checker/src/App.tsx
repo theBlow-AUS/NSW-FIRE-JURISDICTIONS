@@ -16,6 +16,10 @@ import {
   type NswConfirmation,
 } from './fire-service';
 import { ADDRESS_SOURCE_LINK, searchAddresses, reverseAddress, type AddressSuggestion } from './address-service';
+import type { FireContext } from '@workspace/api-client-react';
+import { loadFireContext } from './fire-context-service';
+import CoordinatesForm from './CoordinatesForm';
+import RfsPanel from './RfsPanel';
 
 const queryClient = new QueryClient();
 const isLocalFile = window.location.protocol === 'file:';
@@ -37,6 +41,9 @@ function Home() {
   const [pin, setPin] = useState<MapPoint | null>(null);
   const [focusPoint, setFocusPoint] = useState<MapPoint | null>(null);
   const [coverage, setCoverage] = useState<CoverageResult | null>(null);
+  const [fireContext, setFireContext] = useState<FireContext | null>(null);
+  const [rfsLoading, setRfsLoading] = useState(false);
+  const [rfsError, setRfsError] = useState('');
   const lookupSequence = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchController = useRef<AbortController | null>(null);
@@ -65,12 +72,34 @@ function Home() {
       }
   };
 
+  const checkPoint = useCallback(async (location: ChosenLocation, requestId: number) => {
+    try {
+      const context = await loadFireContext(location.point);
+      if (requestId !== lookupSequence.current) return;
+      setFireContext(context);
+      setCoverage({
+        kind: context.kind, district: context.district ?? undefined,
+        checkedAt: context.checkedAt, message: context.message ?? undefined,
+      });
+    } catch (error) {
+      // Preserve the original boundary checker if the hosted RFS API is unavailable.
+      const fallback = await lookupCoverage(location.point.latitude, location.point.longitude, location.nsw);
+      if (requestId !== lookupSequence.current) return;
+      setCoverage(fallback);
+      setRfsError(`The hosted RFS information service could not be reached. No RFS permit answer has been inferred. ${error instanceof Error ? error.message : ''}`);
+    } finally {
+      if (requestId === lookupSequence.current) setRfsLoading(false);
+    }
+  }, []);
+
   const runLookup = useCallback(async (location: ChosenLocation) => {
     const requestId = ++lookupSequence.current;
     setCoverage({ kind: 'error', checkedAt: '', message: 'Looking up mapped fire coverage…' });
-    const result = await lookupCoverage(location.point.latitude, location.point.longitude, location.nsw);
-    if (requestId === lookupSequence.current) setCoverage(result);
-  }, []);
+    setFireContext(null);
+    setRfsError('');
+    setRfsLoading(true);
+    await checkPoint(location, requestId);
+  }, [checkPoint]);
 
   const chooseAddress = (place: AddressSuggestion) => {
     const point = { latitude: place.latitude, longitude: place.longitude };
@@ -95,6 +124,9 @@ function Home() {
     const requestId = ++lookupSequence.current;
     setPin(point);
     setSelected(null);
+    setFireContext(null);
+    setRfsError('');
+    setRfsLoading(true);
     setCoverage({ kind: 'error', checkedAt: '', message: 'Confirming the address and checking coverage…' });
     try {
       const reverse = await reverseAddress(point.latitude, point.longitude);
@@ -106,24 +138,19 @@ function Home() {
         matchNote: reverse.matchNote,
       };
       setSelected(chosen);
-      const result = await lookupCoverage(point.latitude, point.longitude, chosen.nsw);
-      if (requestId === lookupSequence.current) setCoverage(result);
+      await checkPoint(chosen, requestId);
     } catch (error) {
       if (requestId !== lookupSequence.current) return;
-      setSelected({
+      const chosen: ChosenLocation = {
         address: 'Address could not be resolved at this point',
         point,
         nsw: 'unknown',
-      });
-      const result = await lookupCoverage(point.latitude, point.longitude, 'unknown');
-      if (requestId === lookupSequence.current) {
-        setCoverage(result.kind === 'error' ? {
-          ...result,
-          message: `${result.message ?? ''} Address lookup: ${error instanceof Error ? error.message : 'unavailable'}`,
-        } : result);
-      }
+        matchNote: `Address label unavailable: ${error instanceof Error ? error.message : 'unknown error'}. Coverage still uses the exact pin.`,
+      };
+      setSelected(chosen);
+      await checkPoint(chosen, requestId);
     }
-  }, []);
+  }, [checkPoint]);
 
   const clearSelection = () => {
     searchController.current?.abort();
@@ -134,6 +161,9 @@ function Home() {
     setSelected(null);
     setPin(null);
     setCoverage(null);
+    setFireContext(null);
+    setRfsLoading(false);
+    setRfsError('');
     setQuery('');
     setLocality('');
     setSuggestions([]);
@@ -206,6 +236,10 @@ function Home() {
             {searchError && <div className="result-copy result-error" role="alert" data-testid="status-search-error"><strong>Address search unavailable</strong><p>{searchError}</p></div>}
 
           </section>
+          <details className="coords-disclosure" data-testid="details-coordinates">
+            <summary>Enter coordinates instead</summary>
+            <CoordinatesForm onChoose={(point) => { setFocusPoint(point); void movePin(point); }} />
+          </details>
           <MapPanel point={pin} focusPoint={focusPoint} onPointChange={movePin}
             popup={<CoverageContent coverage={coverage} loading={Boolean(isLoadingResult)} compact />} />
           <section className="control-panel" aria-label="Selected location and coverage result">
@@ -233,7 +267,8 @@ function Home() {
                 <CoverageContent coverage={coverage} loading={Boolean(isLoadingResult)} />
               </div>
             </div>
-            <div className="disclaimer" data-testid="text-indicative-disclaimer"><AlertTriangle size={14} /><span><strong>Indicative only.</strong> Boundaries can change and the mapped data may not be current or entirely accurate. GURAS address points locate properties and may not coincide with a dwelling. This does not confirm an emergency response area or define Rural Fire District boundaries. In an emergency, call 000.</span></div>
+            <RfsPanel context={fireContext} loading={rfsLoading} error={rfsError} />
+            <div className="disclaimer" data-testid="text-indicative-disclaimer"><AlertTriangle size={14} /><span><strong>Indicative only.</strong> Boundaries can change and the mapped data may not be current or entirely accurate. GURAS address points locate properties and may not coincide with a dwelling. RFS permit information is a dated snapshot, not permission to burn or a Total Fire Ban check. This does not confirm an emergency response area or define Rural Fire District boundaries. In an emergency, call 000.</span></div>
             <div className="panel-links">
               <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer" data-testid="link-fire-data-source">FRNSW Fire Districts source</a>
               <a href={ADDRESS_SOURCE_LINK} target="_blank" rel="noreferrer" data-testid="link-geocoder-source">NSW GURAS addressing source</a>

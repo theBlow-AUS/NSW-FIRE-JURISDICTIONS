@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { initialiseRfsCache, startRfsUpdater } from "./rfs/cache";
 
 const rawPort = process.env["PORT"];
 
@@ -15,6 +16,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+await initialiseRfsCache().catch((err) => logger.error({ err }, 'RFS cache could not be initialised'));
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -22,4 +24,5 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  startRfsUpdater();
 });

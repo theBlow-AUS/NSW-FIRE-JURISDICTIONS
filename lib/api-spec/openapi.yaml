@@ -11,6 +11,44 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /fire-context:
+    get:
+      operationId: getFireContext
+      tags: [fire]
+      summary: Check FRNSW coverage before applying LGA-based RFS information
+      parameters:
+        - { name: latitude, in: query, required: true, schema: { type: number, minimum: -90, maximum: 90 } }
+        - { name: longitude, in: query, required: true, schema: { type: number, minimum: -180, maximum: 180 } }
+      responses:
+        "200":
+          description: Location context with dated source information
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FireContext" }
+        "400":
+          description: Invalid coordinates
+  /rfs/status:
+    get:
+      operationId: getRfsStatus
+      tags: [fire]
+      summary: View cached source freshness and refresh schedule
+      responses:
+        "200":
+          description: Update status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RfsUpdateStatus" }
+  /rfs/snapshot:
+    get:
+      operationId: getRfsSnapshot
+      tags: [fire]
+      summary: Download the currently cached RFS snapshot without scraping
+      responses:
+        "200":
+          description: Cached data and provenance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RfsSnapshotOutput" }
   /healthz:
     get:
       operationId: healthCheck
@@ -26,6 +64,74 @@ paths:
                 $ref: "#/components/schemas/HealthStatus"
 components:
   schemas:
+    PermitRecord:
+      type: object
+      required: [lga, required]
+      properties:
+        lga: { type: string }
+        required: { type: boolean }
+    FireContact:
+      type: object
+      required: [lga, district, phone, address]
+      properties:
+        lga: { type: string }
+        district: { type: string }
+        phone: { type: string }
+        address: { type: string }
+    RfsSourceStatus:
+      type: object
+      required: [sourceUrl, retrievedAt, lastAttemptAt, error, stale, recordCount]
+      properties:
+        sourceUrl: { type: string }
+        retrievedAt: { type: string }
+        lastAttemptAt: { type: [string, "null"] }
+        error: { type: [string, "null"] }
+        stale: { type: boolean }
+        recordCount: { type: integer }
+    RfsUpdateStatus:
+      type: object
+      required: [permits, directory, nextRefreshAt, schedule]
+      properties:
+        permits: { $ref: "#/components/schemas/RfsSourceStatus" }
+        directory: { $ref: "#/components/schemas/RfsSourceStatus" }
+        nextRefreshAt: { type: string }
+        schedule: { type: string }
+    RfsSnapshot:
+      type: object
+      required: [permitRows, contacts, permitRetrievedAt, contactsRetrievedAt]
+      properties:
+        permitRows:
+          type: array
+          items: { $ref: "#/components/schemas/PermitRecord" }
+        contacts:
+          type: array
+          items: { $ref: "#/components/schemas/FireContact" }
+        permitRetrievedAt: { type: string }
+        contactsRetrievedAt: { type: string }
+    RfsSnapshotOutput:
+      type: object
+      required: [snapshot, status]
+      properties:
+        snapshot: { $ref: "#/components/schemas/RfsSnapshot" }
+        status: { $ref: "#/components/schemas/RfsUpdateStatus" }
+    FireContext:
+      type: object
+      required: [kind, checkedAt, district, lga, permitRequired, contacts, message, status, localCopy, warnings]
+      properties:
+        kind: { type: string, enum: [frnsw, rural, outside, error] }
+        checkedAt: { type: string }
+        district: { type: [string, "null"] }
+        lga: { type: [string, "null"] }
+        permitRequired: { type: [boolean, "null"] }
+        contacts:
+          type: array
+          items: { $ref: "#/components/schemas/FireContact" }
+        message: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/RfsUpdateStatus" }
+        localCopy: { type: boolean }
+        warnings:
+          type: array
+          items: { type: string }
     HealthStatus:
       type: object
       properties:

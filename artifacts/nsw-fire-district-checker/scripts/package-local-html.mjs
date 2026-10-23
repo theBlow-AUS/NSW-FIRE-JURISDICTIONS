@@ -10,6 +10,19 @@ const localHostRoot = resolve(artifactRoot, 'LOCAL HOST');
 const outputRoot = resolve(workspaceRoot, 'generated-artifacts');
 const archivePath = resolve(outputRoot, 'NSW-Fire-District-Checker-LOCAL-HOST.zip');
 
+// Export the persisted cache, including blocked-source warnings, without scraping.
+const snapshotPath = process.argv[2];
+const exportedSnapshot = snapshotPath
+  ? JSON.parse(await readFile(resolve(snapshotPath), 'utf8'))
+  : await (async () => {
+      const response = await fetch('http://localhost:80/api/rfs/snapshot', { signal: AbortSignal.timeout(20000) });
+      if (!response.ok) throw new Error('The RFS snapshot API is unavailable. Start the API server or supply a saved /api/rfs/snapshot JSON file as the first argument.');
+      return response.json();
+    })();
+if (!Array.isArray(exportedSnapshot?.snapshot?.permitRows) || !Array.isArray(exportedSnapshot?.snapshot?.contacts)
+  || !exportedSnapshot?.status?.permits) throw new Error('The supplied RFS snapshot export is invalid.');
+const safeSnapshot = JSON.stringify(exportedSnapshot).replace(/</g, '\\u003c');
+
 const builtHtml = await readFile(resolve(builtRoot, 'index.html'), 'utf8');
 const jsAsset = builtHtml.match(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*><\/script>/i)?.[1];
 const cssAsset = builtHtml.match(/<link\b[^>]*\bhref="([^"]+\.css)"[^>]*>/i)?.[1];
@@ -42,7 +55,7 @@ let standaloneHtml = builtHtml
   .replace(/<link\b[^>]*\brel="stylesheet"[^>]*>/i, () => `<style>\n${selfContainedStyle}\n</style>`)
   .replace(/<script\b[^>]*\bsrc="[^"]+\.js"[^>]*><\/script>/i, () => `<script type="module">\n${safeScript}\n</script>`)
   .replace('</head>', () => `${localNotice}</head>`)
-  .replace('<body>', '<body>\n    <aside id="local-host-notice" role="note">Local HTML copy · Internet is needed for live GURAS addresses, fire coverage and NSW Spatial Services map tiles.</aside>');
+  .replace('<body>', () => `<body>\n    <script id="rfs-embedded-snapshot" type="application/json">${safeSnapshot}</script>\n    <aside id="local-host-notice" role="note">Local HTML copy · RFS permit/contact data is a dated snapshot. Internet is needed for live GURAS addresses, boundaries and NSW Spatial Services map tiles.</aside>`);
 
 const htmlShell = standaloneHtml.replace(/<script type="module">[\s\S]*?<\/script>/i, '');
 if (/<script\b[^>]*\bsrc=/i.test(htmlShell) || /<link\b[^>]*href="\/assets\//i.test(htmlShell)) {
@@ -63,8 +76,22 @@ Services map tiles. An internet connection is required for address searches,
 coverage results, and map tiles. Requests go directly from your browser to
 those public services.
 
+RFS permit and Fire Control Centre information is embedded as a dated snapshot.
+The page shows the source dates and any refresh failures recorded at export.
+It cannot update this data in the background. Obtain a freshly exported copy
+for newer RFS information. The source reports "Fire Permit required: Yes/No",
+not an independently verified BFDP Active/Inactive declaration. No is not
+permission to burn and this is not a Total Fire Ban check.
+
+FRNSW polygon coverage always takes priority over LGA-based RFS data.
+The hosted updater checks the RFS permit table on Mondays at 3 am Sydney time
+and on the first and last calendar day of each month at 3 am. Coinciding dates
+run once. This schedule does not run inside this local HTML file.
+
 Map tiles: NSW Base Map cached MapServer, © NSW Department of Customer Service
 2020: https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer
+RFS permit table: https://www.rfs.nsw.gov.au/fire-information/BFDP
+RFS contact directory: https://www.rfs.nsw.gov.au/about-us/fire-control-centres
 
 FRNSW/RFD coverage is indicative, may not reflect boundary changes, and does
 not confirm emergency arrangements. In an emergency, call 000.
