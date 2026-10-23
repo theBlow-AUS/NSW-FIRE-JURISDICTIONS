@@ -18,6 +18,7 @@ import {
 import { ADDRESS_SOURCE_LINK, searchAddresses, reverseAddress, type AddressSuggestion } from './address-service';
 
 const queryClient = new QueryClient();
+const isLocalFile = window.location.protocol === 'file:';
 type ChosenLocation = {
   address: string;
   point: MapPoint;
@@ -143,7 +144,7 @@ function Home() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="/" data-testid="link-home">
+        <a className="brand" href={isLocalFile ? '#' : import.meta.env.BASE_URL} data-testid="link-home">
           <span className="brand-mark"><Flame size={20} strokeWidth={2.1} /></span>
           <span><span className="brand-name">NSW Fire Coverage</span><span className="brand-kicker">Location checker</span></span>
         </a>
@@ -268,9 +269,13 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <Router />
-        </WouterRouter>
+        {isLocalFile ? (
+          <ErrorBoundary resetKey="local-file"><Home /></ErrorBoundary>
+        ) : (
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <Router />
+          </WouterRouter>
+        )}
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

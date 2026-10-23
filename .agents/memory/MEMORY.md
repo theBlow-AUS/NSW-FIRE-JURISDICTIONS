@@ -1,1 +1,2 @@
 - [NSW fire checker rules](fire-coverage.md) — GURAS addressing, map-first layout, and safe interpretation of FRNSW/RFD coverage.
+- [Local HTML exports](local-html-exports.md) — locked-down SoE needs a double-click HTML in LOCAL HOST, with no Node/server; live data calls are allowed.

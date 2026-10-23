@@ -22,7 +22,7 @@ const bundleStyle = await readFile(resolve(builtRoot, cssAsset.replace(/^\//, ''
 const favicon = await readFile(resolve(builtRoot, 'favicon.svg'));
 const faviconDataUri = `data:image/svg+xml;base64,${favicon.toString('base64')}`;
 const safeScript = bundleScript.replace(/<\/script/gi, '<\\/script');
-const selfContainedStyle = bundleStyle.replace(/@import\s*["']https:\/\/fonts\.googleapis\.com\/[^;]*;?/gi, '');
+const selfContainedStyle = bundleStyle.replace(/@import\s*(?:url\(\s*)?(["'])https:\/\/fonts\.googleapis\.com\/[^"']*\1\s*\)?\s*;?/gi, '');
 const localNotice = `  <style>
     #local-host-notice {
       box-sizing: border-box;
@@ -38,10 +38,10 @@ const localNotice = `  <style>
 
 let standaloneHtml = builtHtml
   .replace(/^\s*<link\b(?=[^>]*href="https:\/\/fonts\.(?:googleapis|gstatic)\.com)[^>]*>\s*$/gmi, '')
-  .replace(/<link\b[^>]*\brel="icon"[^>]*>/i, `<link rel="icon" type="image/svg+xml" href="${faviconDataUri}" />`)
-  .replace(/<link\b[^>]*\brel="stylesheet"[^>]*>/i, `<style>\n${selfContainedStyle}\n</style>`)
-  .replace(/<script\b[^>]*\bsrc="[^"]+\.js"[^>]*><\/script>/i, `<script type="module">\n${safeScript}\n</script>`)
-  .replace('</head>', `${localNotice}</head>`)
+  .replace(/<link\b[^>]*\brel="icon"[^>]*>/i, () => `<link rel="icon" type="image/svg+xml" href="${faviconDataUri}" />`)
+  .replace(/<link\b[^>]*\brel="stylesheet"[^>]*>/i, () => `<style>\n${selfContainedStyle}\n</style>`)
+  .replace(/<script\b[^>]*\bsrc="[^"]+\.js"[^>]*><\/script>/i, () => `<script type="module">\n${safeScript}\n</script>`)
+  .replace('</head>', () => `${localNotice}</head>`)
   .replace('<body>', '<body>\n    <aside id="local-host-notice" role="note">Local HTML copy · Internet is needed for live GURAS addresses, fire coverage and OpenStreetMap tiles.</aside>');
 
 const htmlShell = standaloneHtml.replace(/<script type="module">[\s\S]*?<\/script>/i, '');
