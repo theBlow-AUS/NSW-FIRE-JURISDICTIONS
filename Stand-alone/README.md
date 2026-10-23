@@ -1,5 +1,7 @@
 # Stand-alone Windows installation
 
+**macOS:** For the Intel/Apple Silicon `.pkg` installer with default port **5400**, see [macOS/README.md](macOS/README.md). The Windows MSI below remains on its original default port.
+
 Self-hosted **NSW Fire Coverage** for **Windows Server 2022 x64** and **Windows 10 x64**. Wired and Wi-Fi networks are both supported.
 
 The MSI includes the website, its local API, Node.js x64 runtime, dated RFS reference data, and a Windows service wrapper. **It does not connect to Replit, require a Replit account, use a Replit database, or need Node/npm/pnpm installed on the target computer.**

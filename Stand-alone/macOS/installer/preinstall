@@ -1,0 +1,58 @@
+#!/bin/sh
+set -eu
+APP='/Library/Application Support/NSW Fire Coverage'
+STATE='/Library/Application Support/NSW Fire Coverage Data'
+LABEL='au.nswfirecoverage.standalone'
+USER='_nswfirecoverage'
+if [ "$(/usr/bin/id -u)" -ne 0 ]; then
+  echo 'Administrator privileges are required.' >&2
+  exit 1
+fi
+if [ "${3:-/}" != '/' ]; then
+  echo 'Install on the currently running macOS system volume only.' >&2
+  exit 1
+fi
+MAJOR=$(/usr/bin/sw_vers -productVersion | /usr/bin/awk -F. '{print $1}')
+if [ "$MAJOR" -lt 11 ]; then
+  echo 'macOS 11 Big Sur or later is required.' >&2
+  exit 1
+fi
+case "$(/usr/bin/uname -m)" in
+  x86_64|arm64) ;;
+  *) echo 'Only Intel x64 and Apple Silicon are supported.' >&2; exit 1 ;;
+esac
+for DIR in "$APP" "$STATE"; do
+  if [ -L "$DIR" ]; then
+    echo "Refusing installation through a symbolic link: $DIR" >&2
+    exit 1
+  fi
+done
+if /usr/bin/dscl . -read "/Users/$USER" >/dev/null 2>&1; then
+  NAME=$(/usr/bin/dscl . -read "/Users/$USER" RealName | /usr/bin/tail -n 1 | /usr/bin/sed 's/^RealName: *//;s/^ *//')
+  SHELL=$(/usr/bin/dscl . -read "/Users/$USER" UserShell | /usr/bin/awk 'NF {value=$NF} END {print value}')
+  if [ "$NAME" != 'NSW Fire Coverage service' ] || [ "$SHELL" != '/usr/bin/false' ]; then
+    echo "The $USER account already exists but is not the expected service account. No account was changed." >&2
+    exit 1
+  fi
+fi
+if /usr/bin/dscl . -read "/Groups/$USER" >/dev/null 2>&1; then
+  NAME=$(/usr/bin/dscl . -read "/Groups/$USER" RealName | /usr/bin/tail -n 1 | /usr/bin/sed 's/^RealName: *//;s/^ *//')
+  if [ "$NAME" != 'NSW Fire Coverage service' ]; then
+    echo "The $USER group already exists and is not the expected service group." >&2
+    exit 1
+  fi
+fi
+if /bin/launchctl print "system/$LABEL" >/dev/null 2>&1; then
+  PID=$(/bin/launchctl print "system/$LABEL" | /usr/bin/awk '/pid = / {print $3;exit}')
+  /bin/launchctl bootout "system/$LABEL"
+  COUNT=0
+  while [ -n "$PID" ] && /bin/kill -0 "$PID" 2>/dev/null; do
+    COUNT=$((COUNT + 1))
+    if [ "$COUNT" -ge 35 ]; then
+      echo 'The previous service has not stopped. Installation was not continued.' >&2
+      exit 1
+    fi
+    /bin/sleep 1
+  done
+fi
+exit 0

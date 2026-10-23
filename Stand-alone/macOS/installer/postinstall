@@ -1,0 +1,83 @@
+#!/bin/sh
+set -eu
+APP='/Library/Application Support/NSW Fire Coverage'
+STATE='/Library/Application Support/NSW Fire Coverage Data'
+PLIST='/Library/LaunchDaemons/au.nswfirecoverage.standalone.plist'
+LABEL='au.nswfirecoverage.standalone'
+USER='_nswfirecoverage'
+if [ "$(/usr/bin/id -u)" -ne 0 ]; then exit 1; fi
+
+next_id() {
+  RECORDS=$(/usr/bin/dscl . -list "$1" "$2")
+  CANDIDATE=400
+  while [ "$CANDIDATE" -lt 500 ]; do
+    if ! printf '%s\n' "$RECORDS" | /usr/bin/awk -v id="$CANDIDATE" '$2 == id {found=1} END {exit !found}'; then
+      printf '%s\n' "$CANDIDATE"
+      return 0
+    fi
+    CANDIDATE=$((CANDIDATE + 1))
+  done
+  echo 'No unused service-account identifier in the reserved installation range.' >&2
+  return 1
+}
+if ! /usr/bin/dscl . -read "/Groups/$USER" >/dev/null 2>&1; then
+  GID=$(next_id /Groups PrimaryGroupID)
+  /usr/bin/dscl . -create "/Groups/$USER"
+  /usr/bin/dscl . -create "/Groups/$USER" PrimaryGroupID "$GID"
+  /usr/bin/dscl . -create "/Groups/$USER" RealName 'NSW Fire Coverage service'
+  /usr/bin/dscl . -create "/Groups/$USER" Password '*'
+else
+  GID=$(/usr/bin/dscl . -read "/Groups/$USER" PrimaryGroupID | /usr/bin/awk '{print $2}')
+fi
+if ! /usr/bin/dscl . -read "/Users/$USER" >/dev/null 2>&1; then
+  UID_VALUE=$(next_id /Users UniqueID)
+  /usr/bin/dscl . -create "/Users/$USER"
+  /usr/bin/dscl . -create "/Users/$USER" UniqueID "$UID_VALUE"
+  /usr/bin/dscl . -create "/Users/$USER" PrimaryGroupID "$GID"
+  /usr/bin/dscl . -create "/Users/$USER" RealName 'NSW Fire Coverage service'
+  /usr/bin/dscl . -create "/Users/$USER" UserShell /usr/bin/false
+  /usr/bin/dscl . -create "/Users/$USER" NFSHomeDirectory /var/empty
+  /usr/bin/dscl . -create "/Users/$USER" Password '*'
+  /usr/bin/dscl . -create "/Users/$USER" IsHidden 1
+fi
+
+for FILE in "$STATE/server.json" "$STATE/data" "$STATE/logs"; do
+  if [ -L "$FILE" ]; then echo "Refusing linked configuration/data: $FILE" >&2; exit 1; fi
+done
+/usr/bin/install -d -o root -g "$USER" -m 750 "$STATE"
+/usr/bin/install -d -o "$USER" -g "$USER" -m 750 "$STATE/data"
+# launchd opens these files before dropping privileges. The service must not be
+# able to replace them with symlinks to files outside its log directory.
+/usr/bin/install -d -o root -g "$USER" -m 750 "$STATE/logs"
+for LOG in "$STATE/logs/service.log" "$STATE/logs/service-error.log"; do
+  if [ -L "$LOG" ]; then echo "Refusing a linked log file: $LOG" >&2; exit 1; fi
+  if [ ! -e "$LOG" ]; then /usr/bin/install -o "$USER" -g "$USER" -m 640 /dev/null "$LOG"; fi
+  /usr/sbin/chown "$USER:$USER" "$LOG"
+  /bin/chmod 640 "$LOG"
+done
+if [ ! -e "$STATE/server.json" ]; then
+  /usr/bin/install -o root -g "$USER" -m 640 "$APP/config/server.default.json" "$STATE/server.json"
+fi
+/usr/sbin/chown root:"$USER" "$STATE/server.json"
+/bin/chmod 640 "$STATE/server.json"
+/usr/sbin/chown -R root:wheel "$APP"
+/bin/chmod -R go-w "$APP"
+/usr/sbin/chown root:wheel "$PLIST"
+/bin/chmod 644 "$PLIST"
+/usr/bin/plutil -lint "$PLIST"
+/bin/launchctl enable "system/$LABEL"
+/bin/launchctl bootstrap system "$PLIST"
+
+if [ "$(/usr/sbin/sysctl -n hw.optional.arm64 2>/dev/null || echo 0)" = '1' ]; then ARCH='arm64'; else ARCH='x64'; fi
+PORT=$("$APP/runtime/darwin-$ARCH/node" -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(!Number.isInteger(c.port)||c.port<1||c.port>65535)process.exit(1);process.stdout.write(String(c.port));' "$STATE/server.json")
+COUNT=0
+while [ "$COUNT" -lt 30 ]; do
+  if /usr/bin/curl --noproxy '*' --connect-timeout 2 --max-time 3 --fail --silent "http://localhost:$PORT/api/healthz" >/dev/null; then
+    echo "NSW Fire Coverage is available at http://localhost:$PORT/"
+    exit 0
+  fi
+  COUNT=$((COUNT + 1))
+  /bin/sleep 1
+done
+echo "Service health check failed. Inspect $STATE/logs and check whether the configured port is already occupied." >&2
+exit 1

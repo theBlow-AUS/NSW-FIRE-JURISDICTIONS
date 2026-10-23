@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const payload = resolve('generated-artifacts/standalone/payload');
+const payload = resolve(process.env.STANDALONE_PAYLOAD || 'generated-artifacts/standalone/payload');
 const { createCache } = await import(pathToFileURL(join(payload, 'app/cache.mjs')));
 const { createApplication } = await import(pathToFileURL(join(payload, 'app/server.mjs')));
 const temporary = await mkdtemp(join(tmpdir(), 'nsw-selfhost-browser-'));
@@ -81,7 +81,7 @@ try {
   assert.deepEqual(errors, []);
   await evaluate(`document.querySelector('[data-testid="panel-rfs"]').scrollIntoView({block:'start'})`);
   const screenshot = await send('Page.captureScreenshot', { format: 'png' });
-  await writeFile('generated-artifacts/standalone/standalone-stations.png', Buffer.from(screenshot.data, 'base64'));
+  await writeFile(process.env.STANDALONE_SCREENSHOT || 'generated-artifacts/standalone/standalone-stations.png', Buffer.from(screenshot.data, 'base64'));
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   assert.ok(await evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'));
   process.stdout.write('PASS: real standalone browser, local API, live NSW boundary/GURAS/station calls, year-round FRNSW permit result, three nearby stations, mobile width, no Replit/font requests or CSP/runtime errors.\n');

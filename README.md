@@ -110,6 +110,8 @@ The packager reads `/api/rfs/snapshot` through the workspace proxy without initi
 
 ## Stand-alone Windows MSI
 
+For the **macOS Intel/Apple Silicon installer**, see **[Stand-alone/macOS/README.md](Stand-alone/macOS/README.md)**. Its default port is **5400** and it runs the same Replit-independent local server with native runtimes for both architectures.
+
 For a self-hosted installation on Windows Server 2022 or Windows 10 x64, see **[Stand-alone/README.md](Stand-alone/README.md)**. This separate build bundles the Windows runtime, serves the website and API locally, and runs the scheduled RFS updater with a local disk cache. It does not use Replit services or require a separately installed Node runtime/database.
 
 Live official NSW data services still require internet access. The MSI build source, service definition, configuration template, administrator scripts, and tests are in `Stand-alone`; generated installers are placed in `Stand-alone/dist` and excluded from Git.

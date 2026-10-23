@@ -56,3 +56,17 @@ mtime_ms = 1792730896525
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/e4c6fd87-23a0-45eb-8fbd-f18014ecc5e4/cb207c86-2750-4388-b9c6-f66bebbb15ec"
 storage_version_token = "1792730987478870"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "SD0HaSJEcjF06CLNfvuLC"
+uri = "file://generated-artifacts/standalone-macos/NSW-Fire-Coverage-macOS-Installer.zip"
+type = "unspecified"
+title = "macOS installer — Intel & Apple Silicon"
+description = "73 MB ZIP containing the actual .pkg installer, SHA-256 checksum and installation guide. Native runtimes, default port 5400, no Replit runtime services. Technical minimum macOS 11. Unsigned/not notarized; native Mac pilot testing required."
+logical_id = "41488d5d-dc29-446e-9a9e-f0601a310695"
+content_hash = "sha256:8143f7d2a2a9649e279c1a4312a7c19df3cd0200c9907629b84128b8b3e8ef18"
+size = 76419812
+mtime_ms = 1792732865233
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/41488d5d-dc29-446e-9a9e-f0601a310695/c76a549e-6f36-4d76-a913-36176be53a66"
+storage_version_token = "1792732872151732"
+content_type = "application/octet-stream"

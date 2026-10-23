@@ -8,7 +8,8 @@ import { generateWxs } from '../installer/generate-wxs.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const source = join(root, 'Stand-alone');
-const output = join(root, 'generated-artifacts/standalone');
+const sharedOnly = process.argv.includes('--shared-only');
+const output = join(root, sharedOnly ? 'generated-artifacts/standalone-macos/shared' : 'generated-artifacts/standalone');
 const payload = join(output, 'payload');
 const frontend = join(root, 'artifacts/nsw-fire-district-checker');
 const api = join(root, 'artifacts/api-server');
@@ -39,6 +40,7 @@ async function download(dependency) {
   if (hash(bytes) !== dependency.sha256) throw new Error(`Checksum mismatch: ${filename}. Remove this file and investigate; do not disable verification.`);
   return filename;
 }
+if (!sharedOnly) {
 const [nodeZip, wrapper] = await Promise.all([download(lock.node), download(lock.winsw)]);
 execFileSync('python3', ['-c', `
 import sys,zipfile,pathlib
@@ -57,6 +59,7 @@ await writeFile(join(payload, 'Open Checker.url'), '[InternetShortcut]\r\nURL=ht
 const licenseResponse = await fetch(lock.winsw.licenseUrl);
 if (!licenseResponse.ok) throw new Error(`WinSW licence fetch failed: ${licenseResponse.status}`);
 await writeFile(join(payload, 'WINSW-LICENSE.txt'), await licenseResponse.text());
+}
 
 const importFrom = async (require, name) => import(pathToFileURL(require.resolve(name)).href);
 const [{ build: viteBuild }, { default: react }, { default: tailwindcss }] = await Promise.all([
@@ -140,7 +143,7 @@ for (const module of [...frontendModules, ...Object.keys(serverBuild.metafile.in
 }
 await writeFile(join(payload, 'THIRD-PARTY-NOTICES.txt'), [
   'Node.js licence: runtime/NODE-LICENSE.txt',
-  'WinSW licence: WINSW-LICENSE.txt',
+  ...(sharedOnly ? [] : ['WinSW licence: WINSW-LICENSE.txt']),
   'The application data remains subject to the official NSW source terms and attribution.',
   ...[...licenses.values()].sort(),
 ].join('\n\n' + '='.repeat(72) + '\n\n'));
@@ -167,13 +170,13 @@ for (const filename of await files(payload)) {
   records.push({ path: name, sha256: hash(bytes), bytes: bytes.length });
 }
 await writeFile(join(payload, 'BUILD-MANIFEST.json'), JSON.stringify({
-  version, architecture: 'x64', builtAt: new Date().toISOString(),
-  nodeVersion: lock.node.version, winswVersion: lock.winsw.version,
+  version, architecture: sharedOnly ? 'runtime-independent' : 'x64', builtAt: new Date().toISOString(),
+  nodeVersion: lock.node.version, winswVersion: sharedOnly ? null : lock.winsw.version,
   runtimeNetwork: 'Local server plus official NSW public services only; no Replit endpoints.',
   files: records,
 }, null, 2));
-await generateWxs({ payload, outputFile: join(output, 'product.wxs'), version });
-if (!process.argv.includes('--skip-msi')) {
+if (!sharedOnly) await generateWxs({ payload, outputFile: join(output, 'product.wxs'), version });
+if (!sharedOnly && !process.argv.includes('--skip-msi')) {
   execFileSync('wixl', ['-a', 'x64', '-o', artifactName, 'product.wxs'], { cwd: output, stdio: 'inherit' });
   const msi = join(output, artifactName);
   const digest = hash(await readFile(msi));
