@@ -1,1 +1,2 @@
-standalone-installers/NSW-Fire-Coverage-1.0.0-macOS-Intel-AppleSilicon.pkg filter=lfs diff=lfs merge=lfs -text
+standalone-installers/*.pkg -filter -diff -merge -text
+standalone-installers/*.msi -filter -diff -merge -text
