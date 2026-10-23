@@ -1,5 +1,7 @@
 import type { FireContext, RfsSourceStatus } from '@workspace/api-client-react';
 import { AlertTriangle, CalendarClock, ExternalLink, Phone, ShieldAlert } from 'lucide-react';
+import type { MapPoint } from './MapPanel';
+import NearbyFrnswStations from './NearbyFrnswStations';
 import './rfs-panel.css';
 
 const FRNSW_PERMIT_LINK = 'https://www.fire.nsw.gov.au/page.php?id=200';
@@ -29,7 +31,7 @@ function SourceRow({ label, id, s }: { label: string; id: string; s: RfsSourceSt
   );
 }
 
-export default function RfsPanel({ context, loading, error }: { context: FireContext | null; loading: boolean; error: string }) {
+export default function RfsPanel({ context, loading, error, point }: { context: FireContext | null; loading: boolean; error: string; point: MapPoint | null }) {
   let body;
   if (loading) {
     body = <div className="result-loading" role="status" data-testid="status-rfs-loading"><span className="skeleton" /> Checking RFS permit and contact data…</div>;
@@ -46,6 +48,7 @@ export default function RfsPanel({ context, loading, error }: { context: FireCon
         {context.lga && <div className="rfs-kv"><span>Local government area</span><strong data-testid="text-rfs-lga">{context.lga}</strong></div>}
         <div className="rfs-kv"><span>Fire permit (source: FRNSW)</span><strong data-testid="text-frnsw-permit">Permits are required all year in FRNSW fire districts</strong></div>
         <a className="rfs-link" href={FRNSW_PERMIT_LINK} target="_blank" rel="noreferrer" data-testid="link-frnsw-permits">Official FRNSW permit information <ExternalLink size={11} /></a>
+        {point && <NearbyFrnswStations point={point} />}
         {context.message && <p className="rfs-note" data-testid="text-rfs-message">{context.message}</p>}
       </div>
     );

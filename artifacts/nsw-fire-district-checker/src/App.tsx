@@ -267,7 +267,7 @@ function Home() {
                 <CoverageContent coverage={coverage} loading={Boolean(isLoadingResult)} />
               </div>
             </div>
-            <RfsPanel context={fireContext} loading={rfsLoading} error={rfsError} />
+            <RfsPanel context={fireContext} loading={rfsLoading} error={rfsError} point={selected?.point ?? pin} />
             <div className="disclaimer" data-testid="text-indicative-disclaimer"><AlertTriangle size={14} /><span><strong>Indicative only.</strong> Boundaries can change and the mapped data may not be current or entirely accurate. GURAS address points locate properties and may not coincide with a dwelling. RFS permit information is a dated snapshot, not permission to burn or a Total Fire Ban check. This does not confirm an emergency response area or define Rural Fire District boundaries. In an emergency, call 000.</span></div>
             <div className="panel-links">
               <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer" data-testid="link-fire-data-source">FRNSW Fire Districts source</a>

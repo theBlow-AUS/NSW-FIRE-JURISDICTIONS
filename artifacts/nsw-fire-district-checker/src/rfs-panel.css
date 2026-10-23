@@ -26,6 +26,17 @@
 .rfs-contact { display:flex; flex-direction:column; gap:4px; padding:10px 0; border-top:1px solid #eee9df; font-size:11px; color:#4e5c52; }
 .rfs-contact strong { font:700 13px var(--app-font-display); color:#26342e; }
 .rfs-contact a { display:inline-flex; gap:5px; align-items:center; font-family:var(--app-font-mono); color:#344d42; }
+.frnsw-stations { display:grid; gap:8px; margin-top:2px; padding-top:12px; border-top:1px dashed #ddd6c8; }
+.frnsw-station { display:grid; gap:6px; padding:10px 11px; border:1px solid #ebe4d5; border-radius:10px; background:#fbfaf6; font-size:11px; color:#4e5c52; }
+.frnsw-station-heading { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.frnsw-station-heading strong { font:700 13px var(--app-font-display); color:#26342e; }
+.frnsw-station-heading span { white-space:nowrap; font:10px var(--app-font-mono); color:#69736b; }
+.frnsw-station-address { display:flex; gap:5px; align-items:flex-start; line-height:1.4; }
+.frnsw-station-address svg { flex:none; margin-top:1px; }
+.frnsw-station a, .frnsw-station-source { display:inline-flex; width:fit-content; gap:5px; align-items:center; color:#344d42; text-underline-offset:3px; }
+.frnsw-stations-error { color:#a8442d; }
+.frnsw-stations-email-note { padding-top:2px; }
+.frnsw-station-source { font-size:10px; }
 .rfs-warnings { list-style:none; margin:0; padding:10px 12px; background:#f5e9d8; border-radius:10px; color:#775832; font-size:10px; line-height:1.45; display:grid; gap:5px; }
 .rfs-warnings li { display:flex; gap:6px; } .rfs-warnings svg { flex:none; margin-top:1px; }
 .rfs-provenance { display:grid; gap:8px; border-top:1px dashed #ddd6c8; padding-top:12px; }
