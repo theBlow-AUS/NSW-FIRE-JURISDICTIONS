@@ -26,3 +26,15 @@ The supplied FRNSW_Stations MapServer sharing URL cannot reliably support point 
 **Why:** Multiple metadata, query, and identify approaches failed on the supplied tile-oriented service; the query-enabled public sibling returned a Sydney district hit and an empty rural-point result.
 
 **How to apply:** Prefer query-enabled authoritative feature services for point intersection. Preserve attribution and be explicit that RFD coverage is inferred from exclusion, not a separate rural-boundary test.
+
+FRNSW boundaries override any RFS data added to this application.
+
+**Why:** The user explicitly stated that FRNSW boundary coverage overrides RFS data.
+
+**How to apply:** Give a successful FRNSW polygon intersection priority over LGA-based RFS information. Do not allow RFS data to reclassify that location as rural.
+
+The requested RFS scraping frequency is weekly, with additional runs on the first and last day of every month, not daily.
+
+**Why:** The user explicitly replaced the daily cadence in the supplied brief.
+
+**How to apply:** Schedule the union of those dates and avoid duplicate runs when a weekly date coincides with a month-boundary run.
