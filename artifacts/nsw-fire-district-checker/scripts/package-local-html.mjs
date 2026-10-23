@@ -42,7 +42,7 @@ let standaloneHtml = builtHtml
   .replace(/<link\b[^>]*\brel="stylesheet"[^>]*>/i, () => `<style>\n${selfContainedStyle}\n</style>`)
   .replace(/<script\b[^>]*\bsrc="[^"]+\.js"[^>]*><\/script>/i, () => `<script type="module">\n${safeScript}\n</script>`)
   .replace('</head>', () => `${localNotice}</head>`)
-  .replace('<body>', '<body>\n    <aside id="local-host-notice" role="note">Local HTML copy · Internet is needed for live GURAS addresses, fire coverage and OpenStreetMap tiles.</aside>');
+  .replace('<body>', '<body>\n    <aside id="local-host-notice" role="note">Local HTML copy · Internet is needed for live GURAS addresses, fire coverage and NSW Spatial Services map tiles.</aside>');
 
 const htmlShell = standaloneHtml.replace(/<script type="module">[\s\S]*?<\/script>/i, '');
 if (/<script\b[^>]*\bsrc=/i.test(htmlShell) || /<link\b[^>]*href="\/assets\//i.test(htmlShell)) {
@@ -58,10 +58,13 @@ Open index.html in your web browser. No installation, server, or other local
 files are needed.
 
 This page is a single, self-contained HTML file. It makes direct requests to
-the NSW GURAS address service, the NSW fire-district service, and OpenStreetMap
-tiles. An internet connection is required for address searches, coverage
-results, and map tiles. Requests go directly from your browser to those public
-services.
+the NSW GURAS address service, the NSW fire-district service, and NSW Spatial
+Services map tiles. An internet connection is required for address searches,
+coverage results, and map tiles. Requests go directly from your browser to
+those public services.
+
+Map tiles: NSW Base Map cached MapServer, © NSW Department of Customer Service
+2020: https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer
 
 FRNSW/RFD coverage is indicative, may not reflect boundary changes, and does
 not confirm emergency arrangements. In an emergency, call 000.

@@ -32,7 +32,7 @@ The browser requests data directly from the following public services; the app d
 | Nearby address point for a dropped pin | NSW Spatial Services GURAS ArcGIS layer 2: [`Guras/MapServer/2`](https://maps.six.nsw.gov.au/arcgis/rest/services/sixmaps/Guras/MapServer/2). |
 | Locality, postcode, and state at a dropped pin | NSW Administrative Boundaries ArcGIS layer 0: [`NSW_Administrative_Boundaries/MapServer/0`](https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Administrative_Boundaries/MapServer/0). |
 | FRNSW district coverage | NSW ArcGIS Feature Service `FRNSW_Locations`, layer 1: [`FRNSW_Locations/FeatureServer/1`](https://portal.data.nsw.gov.au/arcgis/rest/services/Hosted/FRNSW_Locations/FeatureServer/1). Layer 0 is the associated stations layer; the coverage check uses layer 1. |
-| Map background | OpenStreetMap standard raster tiles: `https://tile.openstreetmap.org/{z}/{x}/{y}.png`. [OpenStreetMap copyright and attribution](https://www.openstreetmap.org/copyright). |
+| Map background | NSW Spatial Services cached NSW Base Map tiles: [`NSW_Base_Map/MapServer`](https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer). Copyright © NSW Department of Customer Service 2020. |
 
 The search requests EPSG:4326 coordinates. Pin reverse lookups use the GURAS point service and NSW locality boundaries. If a nearby GURAS address point is displayed, the coverage check still uses the exact dropped-pin coordinates.
 
@@ -61,7 +61,7 @@ Open `LOCAL HOST/index.html` in a modern browser. It is a self-contained HTML fi
 
 ## Attribution and limitations
 
-- Keep the OpenStreetMap attribution visible when using the map.
+- Keep the NSW Department of Customer Service attribution visible when using the map.
 - NSW service availability, response formats, and datasets may change.
 - Coverage classifications depend on the live FRNSW district layer and the app's NSW locality check.
 - **Rural Fire District** is an inference where no mapped FRNSW district intersects a confirmed NSW point; it must not be treated as an official RFD boundary determination.

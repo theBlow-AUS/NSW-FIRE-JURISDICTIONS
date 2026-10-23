@@ -12,6 +12,8 @@ type Props = {
 
 const TILE_SIZE = 256;
 const DEFAULT_CENTER = { latitude: -33.8688, longitude: 151.2093 };
+const NSW_BASE_MAP_TILE_URL =
+  'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer/tile';
 
 function project(latitude: number, longitude: number, zoom: number) {
   const scale = TILE_SIZE * 2 ** zoom;
@@ -56,7 +58,7 @@ export default function MapPanel({ point, focusPoint, onPointChange, popup }: Pr
         const wrappedX = ((x % count) + count) % count;
         result.push({
           key: `${zoom}-${x}-${y}`,
-          url: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${y}.png`,
+          url: `${NSW_BASE_MAP_TILE_URL}/${zoom}/${y}/${wrappedX}`,
           x: x * TILE_SIZE - left,
           y: y * TILE_SIZE - top,
         });
@@ -183,7 +185,7 @@ export default function MapPanel({ point, focusPoint, onPointChange, popup }: Pr
             <div aria-live="polite">{popup}</div>
           </div>
         )}
-        <div className="map-topline"><LocateFixed size={13} /> NEW SOUTH WALES <span>·</span> OSM</div>
+        <div className="map-topline"><LocateFixed size={13} /> NSW SPATIAL SERVICES</div>
         <div className="map-controls">
           <button type="button" aria-label="Zoom in" onClick={() => setZoomBounded(1)} data-testid="button-zoom-in"><Plus size={16} /></button>
           <button type="button" aria-label="Zoom out" onClick={() => setZoomBounded(-1)} data-testid="button-zoom-out"><Minus size={16} /></button>
@@ -195,11 +197,11 @@ export default function MapPanel({ point, focusPoint, onPointChange, popup }: Pr
             {Math.abs(displayedPoint.latitude).toFixed(4)}° {displayedPoint.latitude < 0 ? 'S' : 'N'} · {Math.abs(displayedPoint.longitude).toFixed(4)}° {displayedPoint.longitude < 0 ? 'W' : 'E'}
           </div>
         )}
-        <div className="map-attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a></div>
+        <div className="map-attribution"><a href="https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer" target="_blank" rel="noreferrer">© NSW Department of Customer Service 2020</a></div>
       </div>
       <div className="map-caption">
         <span><LocateFixed size={12} /> {displayedPoint ? 'Location selected' : 'Map centered on Sydney'}</span>
-        <span>Map data © OpenStreetMap</span>
+        <span>Map data © NSW Department of Customer Service</span>
       </div>
     </div>
   );

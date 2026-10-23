@@ -243,7 +243,7 @@ function Home() {
       </main>
       <footer className="footer">
         <span>Public reference tool · Coverage is indicative and may not reflect current operational arrangements.</span>
-        <span>Boundaries: <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer">NSW Spatial Services</a> · Addressing: <a href={ADDRESS_SOURCE_LINK} target="_blank" rel="noreferrer">NSW GURAS</a> · Map: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a></span>
+        <span>Boundaries: <a href={ARCGIS_SOURCE_LINK} target="_blank" rel="noreferrer">NSW Spatial Services</a> · Addressing: <a href={ADDRESS_SOURCE_LINK} target="_blank" rel="noreferrer">NSW GURAS</a> · Map: <a href="https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Base_Map/MapServer" target="_blank" rel="noreferrer">NSW Base Map</a></span>
       </footer>
     </div>
   );
