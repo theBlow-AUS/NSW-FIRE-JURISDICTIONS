@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   Activity, AlertTriangle, ArrowDownToLine, Check, ChevronDown, CircleDot, Database,
   Eye, EyeOff, FileArchive, FileText, Folder, FolderPlus, Layers3,
@@ -7,10 +7,10 @@ import {
 } from 'lucide-react';
 import {
   createGisProject, deleteGisLayer, deleteGisProject, geoJsonDownloadUrl,
-  getGisLayer, getStandaloneState, importGisFiles, refreshLiveFeeds,
+  getGisLayer, getGisAttributes, getGisFeature, getStandaloneState, importGisFiles, refreshLiveFeeds,
   renameGisProject, saveGisLayer,
   type FeedSourceStatus, type FireDangerRegion, type GeoJsonFeature, type GeoJsonGeometry,
-  type GisLayer, type GisLayerSummary, type GisProject, type StandaloneState,
+  type GisLayer, type GisLayerSummary, type GisProject, type StandaloneState, type AttributePage,
 } from './standalone-api';
 import './standalone-workspace.css';
 import { Link } from 'wouter';
@@ -29,7 +29,9 @@ function geometryPoints(geometry: GeoJsonGeometry | null): Point[] {
     }
     value.forEach(visit);
   };
-  if (geometry.type === 'GeometryCollection') geometry.geometries?.forEach((item) => points.push(...geometryPoints(item)));
+  if (geometry.type === 'GeometryCollection') geometry.geometries?.forEach((item) => {
+    for (const point of geometryPoints(item)) points.push(point);
+  });
   else visit(geometry.coordinates);
   return points;
 }
@@ -55,13 +57,17 @@ function fileKind(name: string) {
   return 'Other file';
 }
 
-function FeatureMap({ layer, selectedIndex, onSelect }: {
+function FeatureMap({ layer, selectedIndex, onSelect, viewport, onViewport }: {
   layer: GisLayer; selectedIndex: number; onSelect: (index: number) => void;
+  viewport?: number[]; onViewport?: (bbox: number[]) => void;
 }) {
   const [bounds, setBounds] = useState({ minX: 150.4, minY: -34.2, maxX: 152.2, maxY: -33.4 });
   const preview = useMemo(() => layer.collection.features.slice(0, 10000), [layer.collection.features]);
   const allPoints = useMemo(() => preview.flatMap((feature) => geometryPoints(feature.geometry)), [preview]);
   useEffect(() => {
+    if (viewport) {
+      setBounds({ minX: viewport[0], minY: viewport[1], maxX: viewport[2], maxY: viewport[3] }); return;
+    }
     if (!allPoints.length) return;
     const extent = allPoints.reduce((result, point) => ({
       minX: Math.min(result.minX, point[0]), maxX: Math.max(result.maxX, point[0]),
@@ -72,7 +78,7 @@ function FeatureMap({ layer, selectedIndex, onSelect }: {
     if (minY === maxY) { minY -= 0.01; maxY += 0.01; }
     const padX = (maxX - minX) * 0.08, padY = (maxY - minY) * 0.08;
     setBounds({ minX: minX - padX, maxX: maxX + padX, minY: minY - padY, maxY: maxY + padY });
-  }, [allPoints]);
+  }, [allPoints, viewport]);
   const project = (point: Point): Point => [
     25 + ((point[0] - bounds.minX) / (bounds.maxX - bounds.minX)) * 750,
     25 + ((bounds.maxY - point[1]) / (bounds.maxY - bounds.minY)) * 430,
@@ -125,6 +131,18 @@ function FeatureMap({ layer, selectedIndex, onSelect }: {
     }
   };
   return <div className="sw-map" data-testid="map-feature-view">
+    {onViewport && viewport && <div className="sw-map-controls">
+      {['Zoom in', 'Zoom out', 'West', 'East', 'North', 'South', 'Fit layer'].map((label) => <button type="button" key={label} className="sw-secondary-button" onClick={() => {
+        const [a, b, c, d] = viewport, w = c - a, h = d - b;
+        const x = (a + c) / 2, y = (b + d) / 2;
+        const fit = layer.bounds;
+        const next = label === 'Fit layer' && fit ? [fit[0] - 0.01, fit[1] - 0.01, fit[2] + 0.01, fit[3] + 0.01] :
+          label === 'West' ? [a - w / 2, b, c - w / 2, d] : label === 'East' ? [a + w / 2, b, c + w / 2, d] :
+          label === 'North' ? [a, b + h / 2, c, d + h / 2] : label === 'South' ? [a, b - h / 2, c, d - h / 2] :
+          [x - w * (label === 'Zoom in' ? 0.25 : 1), y - h * (label === 'Zoom in' ? 0.25 : 1), x + w * (label === 'Zoom in' ? 0.25 : 1), y + h * (label === 'Zoom in' ? 0.25 : 1)];
+        onViewport(next);
+      }}>{label}</button>)}
+    </div>}
     {allPoints.length ? <svg viewBox="0 0 800 480" role="img" aria-label="Loaded GeoJSON features in WGS84 coordinates">
       <defs><pattern id="sw-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#dce4dc" strokeWidth="1" /></pattern></defs>
       <rect width="800" height="480" fill="url(#sw-grid)" />
@@ -134,7 +152,7 @@ function FeatureMap({ layer, selectedIndex, onSelect }: {
     </svg> : <div className="sw-map-empty"><Map size={24} /><span>No drawable geometry in this layer.</span><small>Features with points, lines or polygons will appear here.</small></div>}
     {!layer.visible && <div className="sw-map-hidden" data-testid="status-layer-hidden"><EyeOff size={14} /> Layer hidden</div>}
     <div className="sw-map-legend"><span style={{ background: layer.style.color }} />{layer.name}</div>
-    {layer.collection.features.length > 10000 && <p role="status" className="sw-feed-note">Map preview limited to 10,000 features. The working copy and export retain all features.</p>}
+    {layer.truncated && <p role="status" className="sw-feed-note">Preview limited to 1,000 features / 2 MiB per layer. Zoom in to see more. Large geometries may be omitted; attribute pages and exports retain all records.</p>}
   </div>;
 }
 
@@ -161,6 +179,15 @@ export default function StandaloneWorkspace() {
   const [overlayLayers, setOverlayLayers] = useState<GisLayer[]>([]);
   const [showIncidents, setShowIncidents] = useState(false);
   const [councilField, setCouncilField] = useState('');
+  const [viewport, setViewport] = useState<number[] | undefined>();
+  const [page, setPage] = useState<AttributePage | null>(null);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<GeoJsonFeature | null>(null);
+  const [edits, setEdits] = useState<Record<number, GeoJsonFeature>>({});
+  const loadSequence = useRef(0);
+  const selectionSequence = useRef(0);
+  const [pageVersion, setPageVersion] = useState(0);
 
   const refreshState = useCallback(async (keepNotice = true) => {
     setLoading(true); setError('');
@@ -185,23 +212,54 @@ export default function StandaloneWorkspace() {
     let cancelled = false;
     if (!project) { setOverlayLayers([]); return; }
     void Promise.all(project.layers.filter((item) => item.id !== activeLayerId && item.visible)
-      .map((item) => getGisLayer(project.id, item.id)))
+      .slice(0, 8).map((item) => getGisLayer(project.id, item.id, viewport)))
       .then((items) => { if (!cancelled) setOverlayLayers(items); })
       .catch((err) => { if (!cancelled) setNotice({ kind: 'error', text: `Map overlays could not be loaded: ${err.message}` }); });
     return () => { cancelled = true; };
   // Metadata timestamps change whenever a working layer is saved or removed.
-  }, [project?.id, project?.updatedAt, activeLayerId]);
+  }, [project?.id, project?.updatedAt, activeLayerId, viewport]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!projectId || !activeLayerId) { setPage(null); return; }
+    setPageLoading(true);
+    const timer = window.setTimeout(() => {
+      void getGisAttributes(projectId, activeLayerId, pageOffset, featureSearch).then((data) => {
+        if (!cancelled) setPage(data);
+      }).catch((err) => { if (!cancelled) setNotice({ kind: 'error', text: err.message }); })
+        .finally(() => { if (!cancelled) setPageLoading(false); });
+    }, 200);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [projectId, activeLayerId, pageOffset, featureSearch, pageVersion]);
+  useEffect(() => { setPageOffset(0); }, [featureSearch]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!viewport || !projectId || !activeLayerId) return;
+    void getGisLayer(projectId, activeLayerId, viewport).then((data) => {
+      if (!cancelled) {
+        setLayer((previous) => previous?.id === data.id ? { ...previous, collection: data.collection, ordinals: data.ordinals, truncated: data.truncated } : previous);
+        setDraft((previous) => previous?.id === data.id ? { ...previous, collection: data.collection, ordinals: data.ordinals, truncated: data.truncated } : previous);
+      }
+    }).catch((err) => { if (!cancelled) setNotice({ kind: 'error', text: err.message }); });
+    return () => { cancelled = true; };
+  }, [viewport, projectId, activeLayerId]);
   const loadLayer = useCallback(async (projectKey: string, layerKey: string) => {
+    const sequence = ++loadSequence.current;
+    ++selectionSequence.current;
     if (!projectKey || !layerKey) { setLayer(null); setDraft(null); return; }
+    setLayer(null); setDraft(null); setSelectedRecord(null); setEdits({}); setPage(null);
     setBusy('layer'); setEditError('');
     try {
       const data = await getGisLayer(projectKey, layerKey);
-      setLayer(data); setDraft(structuredClone(data)); setActiveLayerId(layerKey); setSelectedFeature(0);
-      const first = data.collection.features[0];
-      setPropertiesText(JSON.stringify(first?.properties ?? {}, null, 2));
+      const first = data.featureCount ? (await getGisFeature(projectKey, layerKey, 0)).feature : null;
+      if (sequence !== loadSequence.current) return;
+      setLayer(data); setDraft(data); setActiveLayerId(layerKey); setSelectedFeature(0); setSelectedRecord(first);
+      setEdits({}); setPageOffset(0); setFeatureSearch(''); setCouncilField('');
+      const b = data.bounds;
+      setViewport(b ? [b[0] - 0.01, b[1] - 0.01, b[2] + 0.01, b[3] + 0.01] : [-180, -90, 180, 90]);
+      setPropertiesText(JSON.stringify(first ? first.properties : {}, null, 2));
       setGeometryText(JSON.stringify(first?.geometry ?? null, null, 2));
-    } catch (err) { setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Layer could not be opened.' }); }
-    finally { setBusy(''); }
+    } catch (err) { if (sequence === loadSequence.current) setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Layer could not be opened.' }); }
+    finally { if (sequence === loadSequence.current) setBusy(''); }
   }, []);
   useEffect(() => {
     if (!project) { setActiveLayerId(''); setLayer(null); setDraft(null); return; }
@@ -213,25 +271,26 @@ export default function StandaloneWorkspace() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  const currentFeature = draft?.collection.features[selectedFeature] ?? null;
+  const currentFeature = edits[selectedFeature] ?? selectedRecord;
   const mapLayer = useMemo(() => {
     if (!draft) return null;
-    const features: GeoJsonFeature[] = draft.visible ? draft.collection.features : [];
+    const features: GeoJsonFeature[] = draft.visible ? draft.collection.features.map((feature, i) => edits[draft.ordinals?.[i] ?? i] ?? feature) : [];
     const extra = overlayLayers.flatMap((item) => item.collection.features.map((feature) => ({
       ...feature, properties: { ...feature.properties, _viewColor: item.style.color, _viewOpacity: item.style.fillOpacity, _viewLayer: item.name },
     })));
     const incidents = showIncidents ? (state?.feeds.incidents.features || []).map((feature) => ({
       ...feature, properties: { ...feature.properties, _viewColor: '#c43e2d', _viewLayer: 'RFS live incidents' },
     })) : [];
-    return { ...draft, visible: true, name: `${draft.name} · visible layers${showIncidents ? ' + RFS incidents' : ''}`,
+    return { ...draft, truncated: draft.truncated || overlayLayers.some((item) => item.truncated), visible: true, name: `${draft.name} · visible layers${showIncidents ? ' + RFS incidents' : ''}`,
       collection: { type: 'FeatureCollection' as const, features: [...features, ...extra, ...incidents] } };
-  }, [draft, overlayLayers, showIncidents, state?.feeds.incidents]);
+  }, [draft, edits, overlayLayers, showIncidents, state?.feeds.incidents]);
   useEffect(() => {
-    setPropertiesText(JSON.stringify(currentFeature?.properties ?? {}, null, 2));
+    setPropertiesText(JSON.stringify(currentFeature ? currentFeature.properties : {}, null, 2));
     setGeometryText(JSON.stringify(currentFeature?.geometry ?? null, null, 2));
     setEditError('');
-  }, [selectedFeature, draft?.id]);
-  const dirty = Boolean(layer && draft && JSON.stringify(layer) !== JSON.stringify(draft));
+  }, [selectedFeature, selectedRecord, draft?.id]);
+  const textDirty = Boolean(currentFeature && (propertiesText !== JSON.stringify(currentFeature.properties, null, 2) || geometryText !== JSON.stringify(currentFeature.geometry, null, 2)));
+  const dirty = Boolean(Object.keys(edits).length || textDirty || (layer && draft && (layer.name !== draft.name || layer.visible !== draft.visible || JSON.stringify(layer.style) !== JSON.stringify(draft.style))));
   useEffect(() => {
     const leave = (event: BeforeUnloadEvent) => {
       if (!dirty) return;
@@ -240,12 +299,7 @@ export default function StandaloneWorkspace() {
     window.addEventListener('beforeunload', leave);
     return () => window.removeEventListener('beforeunload', leave);
   }, [dirty]);
-  const visibleFeatures = useMemo(() => {
-    const rows = draft?.collection.features ?? [];
-    const q = featureSearch.trim().toLowerCase();
-    return rows.map((feature, index) => ({ feature, index })).filter(({ feature, index }) =>
-      !q || featureLabel(feature, index).toLowerCase().includes(q) || JSON.stringify(feature.properties ?? {}).toLowerCase().includes(q));
-  }, [draft?.collection.features, featureSearch]);
+  const visibleFeatures = (page?.items ?? []).map((item) => ({ ...item, index: item.ordinal }));
   const updateDraft = (updater: (previous: GisLayer) => GisLayer) => setDraft((previous) => previous ? updater(previous) : previous);
 
   const submitProject = async () => {
@@ -275,6 +329,7 @@ export default function StandaloneWorkspace() {
   };
   const doImport = async () => {
     if (!project || !importFiles?.length) return;
+    if (dirty && !window.confirm('Discard unsaved draft edits and import new layers?')) return;
     setBusy('import'); setImportWarnings([]); setNotice(null);
     try {
       const result = await importGisFiles(project.id, importFiles);
@@ -302,38 +357,48 @@ export default function StandaloneWorkspace() {
     if (!project || !draft) return;
     setBusy('save'); setNotice(null);
     try {
-      const saved = await saveGisLayer(project.id, draft.id, draft);
-      setLayer(draft); await refreshState();
+      const pending = { ...edits };
+      if (currentFeature) {
+        const feature = parseFeatureText();
+        if (JSON.stringify(feature) !== JSON.stringify(currentFeature)) pending[selectedFeature] = feature;
+      }
+      const saved = await saveGisLayer(project.id, draft.id, draft, Object.entries(pending).map(([ordinal, feature]) => ({ ordinal: Number(ordinal), feature })));
+      const next = { ...draft, ...saved };
+      setLayer(next); setDraft(next); setSelectedRecord(pending[selectedFeature] ?? currentFeature); setEdits({});
+      setPageVersion((n) => n + 1); await refreshState();
+      const preview = await getGisLayer(project.id, draft.id, viewport);
+      setLayer(preview); setDraft(preview);
       setNotice({ kind: 'success', text: `Working copy saved · ${saved.featureCount} features in “${saved.name}”.` });
     } catch (err) { setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Working copy was not saved.' }); }
     finally { setBusy(''); }
   };
-  const commitFeatureText = () => {
-    if (!currentFeature) return;
-    try {
+  const parseFeatureText = (): GeoJsonFeature => {
+      if (!currentFeature) throw new Error('Select a feature first.');
       const properties = JSON.parse(propertiesText);
       const geometry = JSON.parse(geometryText);
-      if (properties === null || Array.isArray(properties) || typeof properties !== 'object') throw new Error('Properties must be a JSON object.');
+      if (Array.isArray(properties) || (properties !== null && typeof properties !== 'object')) throw new Error('Properties must be a JSON object or null.');
       if (geometry !== null && (typeof geometry !== 'object' || typeof geometry.type !== 'string')) throw new Error('Geometry must be a GeoJSON geometry object or null.');
-      updateDraft((previous) => {
-        const features = previous.collection.features.map((feature, index) => index === selectedFeature
-          ? { ...feature, properties: properties as Record<string, unknown>, geometry: geometry as GeoJsonGeometry | null }
-          : feature);
-        return { ...previous, collection: { ...previous.collection, features } };
-      });
+      return { ...currentFeature, properties, geometry };
+  };
+  const commitFeatureText = () => {
+    if (!currentFeature) return true;
+    try {
+      const feature = parseFeatureText();
+      if (JSON.stringify(feature) !== JSON.stringify(currentFeature)) setEdits((previous) => ({ ...previous, [selectedFeature]: feature }));
       setEditError('');
-    } catch (err) { setEditError(err instanceof Error ? err.message : 'Feature JSON is invalid.'); }
+      return true;
+    } catch (err) { setEditError(err instanceof Error ? err.message : 'Feature JSON is invalid.'); return false; }
   };
   const toggleLayer = async (item: GisLayerSummary) => {
-    if (!project) return;
+    if (!project || busy) return;
     setBusy('visibility');
     try {
       const full = await getGisLayer(project.id, item.id);
       const next = { ...full, visible: !item.visible };
-      await saveGisLayer(project.id, item.id, next);
+      const saved = await saveGisLayer(project.id, item.id, next);
       if (item.id === activeLayerId) {
-        setLayer(next);
-        setDraft((previous) => previous ? { ...previous, visible: next.visible } : previous);
+        setLayer({ ...next, ...saved });
+        setDraft((previous) => previous ? { ...previous, visible: next.visible, revision: saved.revision } : previous);
       }
       await refreshState();
       setNotice({ kind: 'success', text: `Layer ${next.visible ? 'shown' : 'hidden'} in the project.` });
@@ -348,7 +413,16 @@ export default function StandaloneWorkspace() {
     } catch (err) { setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Feed refresh could not be requested.' }); }
     finally { setBusy(''); }
   };
-  const chooseFeature = (index: number) => setSelectedFeature(index);
+  const chooseFeature = async (index: number) => {
+    if (!project || !draft || busy || !commitFeatureText()) return;
+    const sequence = ++selectionSequence.current;
+    try {
+      const record = await getGisFeature(project.id, draft.id, index);
+      if (sequence !== selectionSequence.current) return;
+      if (record.revision !== draft.revision) throw new Error('This layer changed. Save or discard your draft, then reopen it.');
+      setSelectedRecord(record.feature); setSelectedFeature(index);
+    } catch (err) { setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Feature could not be loaded.' }); }
+  };
 
   if (loading && !state) return <main className="sw-shell" data-testid="standalone-workspace"><div className="sw-loading"><span className="sw-skeleton sw-skeleton-title" /><span className="sw-skeleton" /><span className="sw-skeleton sw-skeleton-wide" /><span className="sw-skeleton sw-skeleton-wide" /></div></main>;
   if (error && !state) return <main className="sw-shell" data-testid="standalone-workspace"><div className="sw-fatal"><AlertTriangle size={25} /><h1>Local workspace unavailable</h1><p>{error}</p><button type="button" onClick={() => void refreshState()} data-testid="button-retry-load"><RefreshCw size={15} /> Retry</button></div></main>;
@@ -377,7 +451,7 @@ export default function StandaloneWorkspace() {
           <section className="sw-panel sw-project-panel">
             <div className="sw-panel-head"><div><span className="sw-overline">PROJECTS</span><h2>Local GIS projects</h2></div><button className="sw-icon-button" type="button" aria-label="Create project" onClick={() => { setProjectDialog('create'); setProjectName(''); }} data-testid="button-create-project"><Plus size={17} /></button></div>
             {projectDialog === 'create' && <div className="sw-inline-form"><label htmlFor="sw-project-name">New project name</label><input id="sw-project-name" value={projectName} onChange={(e) => setProjectName(e.target.value)} autoFocus data-testid="input-project-name" onKeyDown={(e) => { if (e.key === 'Enter') void submitProject(); }} /><div><button type="button" onClick={() => setProjectDialog(null)} data-testid="button-cancel-project">Cancel</button><button type="button" className="sw-primary-button" disabled={!projectName.trim() || busy === 'project'} onClick={() => void submitProject()} data-testid="button-save-project">{busy === 'project' ? 'Working…' : 'Create project'}</button></div></div>}
-            {state?.projects.length ? <div className="sw-project-list">{state.projects.map((item) => <button type="button" key={item.id} className={`sw-project-row ${projectId === item.id ? 'is-active' : ''}`} onClick={() => { if (item.id !== projectId && dirty && !window.confirm('Discard unsaved draft edits and open another project?')) return; setProjectId(item.id); }} data-testid={`button-project-${item.id}`}>
+            {state?.projects.length ? <div className="sw-project-list">{state.projects.map((item) => <button type="button" key={item.id} className={`sw-project-row ${projectId === item.id ? 'is-active' : ''}`} disabled={!!busy} onClick={() => { if (item.id !== projectId && dirty && !window.confirm('Discard unsaved draft edits and open another project?')) return; setProjectId(item.id); }} data-testid={`button-project-${item.id}`}>
               <Folder size={16} /><span><strong>{item.name}</strong><small>{item.layers.length} layer{item.layers.length === 1 ? '' : 's'} · updated {dateLabel(item.updatedAt)}</small></span><ChevronDown size={15} className="sw-row-chevron" />
             </button>)}</div> : <div className="sw-empty sw-empty-project"><FolderPlus size={22} /><strong>No local projects yet</strong><span>Create a project to start importing GIS data.</span></div>}
             {project && <div className="sw-project-tools">
@@ -389,7 +463,7 @@ export default function StandaloneWorkspace() {
           <section className="sw-panel sw-layer-panel">
             <div className="sw-panel-head"><div><span className="sw-overline">PROJECT CONTENTS</span><h2>Layers <span className="sw-count">{project?.layers.length ?? 0}</span></h2></div><Layers3 size={18} className="sw-head-icon" /></div>
             {!project ? <div className="sw-empty sw-empty-small"><span>Select or create a project to manage layers.</span></div> : project.layers.length ? <div className="sw-layer-list">{project.layers.map((item) => <div key={item.id} className={`sw-layer-row ${activeLayerId === item.id ? 'is-active' : ''}`} data-testid={`row-layer-${item.id}`}>
-              <button type="button" className="sw-layer-select" onClick={() => { if (dirty && !window.confirm('Discard unsaved draft edits and reload this layer?')) return; setActiveLayerId(item.id); void loadLayer(project.id, item.id); }} data-testid={`button-select-layer-${item.id}`}>
+              <button type="button" className="sw-layer-select" disabled={!!busy} onClick={() => { if (dirty && !window.confirm('Discard unsaved draft edits and reload this layer?')) return; setActiveLayerId(item.id); void loadLayer(project.id, item.id); }} data-testid={`button-select-layer-${item.id}`}>
               <span className="sw-layer-symbol" style={{ '--layer-color': item.style.color } as CSSProperties}><Layers3 size={15} /></span>
                 <span className="sw-layer-copy"><strong>{item.name}</strong><small>{item.geometryType} · {item.featureCount.toLocaleString()} features</small>{item.warning && <small className="sw-layer-warning"><AlertTriangle size={11} />{item.warning}</small>}</span>
               </button>
@@ -421,38 +495,41 @@ export default function StandaloneWorkspace() {
                 <button type="button" className="sw-primary-button" disabled={!dirty || busy === 'save'} onClick={() => void saveDraft()} data-testid="button-save-layer">{busy === 'save' ? <><LoaderCircle size={14} className="sw-spin" /> Saving…</> : <><Save size={14} /> Save working copy</>}</button>
               </div>}
             </div>
-            {draft && <div className="sw-layer-meta"><span><CircleDot size={13} /> {draft.collection.features.length.toLocaleString()} features</span><span><Database size={13} /> {draft.fields.length} fields</span><span><Activity size={13} /> imported {dateLabel(draft.importedAt)}</span>{dirty && <span className="sw-dirty"><span /> Unsaved draft edits</span>}</div>}
+            {draft && <div className="sw-layer-meta"><span><CircleDot size={13} /> {draft.featureCount.toLocaleString()} features</span><span><Database size={13} /> {draft.fields.length} fields</span><span><Activity size={13} /> imported {dateLabel(draft.importedAt)}</span>{dirty && <span className="sw-dirty"><span /> Unsaved draft edits</span>}</div>}
             {!draft ? <div className="sw-inspector-empty"><div><Map size={28} /><strong>{project ? 'Select a layer to begin' : 'Your workspace is ready'}</strong><span>{project ? 'Choose a layer in the project panel, or import new data.' : 'Create a project on the left, then bring in local GIS data.'}</span></div></div> :
               <div className="sw-inspector-content">
                 <label className="sw-layer-meta"><input type="checkbox" checked={showIncidents} onChange={(event) => setShowIncidents(event.target.checked)} data-testid="input-show-live-incidents" /> Show cached/live RFS incidents on this map</label>
-                {mapLayer && <FeatureMap layer={mapLayer} selectedIndex={draft.visible ? selectedFeature : -1} onSelect={(index) => {
-                  if (draft.visible && index < draft.collection.features.length) chooseFeature(index);
+                {project && project.layers.filter((item) => item.visible && item.id !== activeLayerId).length > 8 && <p role="status">Showing the first eight other visible layers. Select a layer to inspect it directly.</p>}
+                {mapLayer && <FeatureMap layer={mapLayer} viewport={viewport} onViewport={setViewport} selectedIndex={draft.visible ? (draft.ordinals?.indexOf(selectedFeature) ?? selectedFeature) : -1} onSelect={(index) => {
+                  if (draft.visible && index < draft.collection.features.length) void chooseFeature(draft.ordinals?.[index] ?? index);
                   else {
                     const feature = mapLayer.collection.features[index];
                     setNotice({ kind: 'info', text: `${feature.properties?._viewLayer || 'Overlay'}: ${featureLabel(feature, index)}. Select its source layer to edit; live feed features are read-only.` });
                   }
                 }} />}
                 <div className="sw-layer-meta"><label>Optional confirmed council-name field for danger/ban enrichment: <select value={councilField} onChange={(event) => setCouncilField(event.target.value)} data-testid="select-council-join-field"><option value="">No regional join</option>{draft.fields.map((field) => <option key={field} value={field}>{field}</option>)}</select></label>
-                  {councilField && <><a href={`${geoJsonDownloadUrl(project!.id, draft.id)}?councilField=${encodeURIComponent(councilField)}`} download data-testid="link-export-enriched-geojson">Export exact council matches</a><a href={`${geoJsonDownloadUrl(project!.id, draft.id)}?manifest=1&councilField=${encodeURIComponent(councilField)}`} download data-testid="link-export-enriched-provenance">Join provenance</a></>}</div>
+                  {councilField && <><a href={`${geoJsonDownloadUrl(project!.id, draft.id)}?councilField=${encodeURIComponent(councilField)}`} onClick={(event) => { if (dirty) { event.preventDefault(); setNotice({ kind: 'info', text: 'Save your draft before exporting.' }); } }} download data-testid="link-export-enriched-geojson">Export exact council matches</a><a href={`${geoJsonDownloadUrl(project!.id, draft.id)}?manifest=1&councilField=${encodeURIComponent(councilField)}`} download data-testid="link-export-enriched-provenance">Join provenance</a></>}</div>
                 <div className="sw-feature-workbench">
                   <section className="sw-feature-list">
-                    <div className="sw-subhead"><div><span className="sw-overline">FEATURES</span><strong>{draft.collection.features.length.toLocaleString()} records</strong></div><div className="sw-feature-search"><Search size={14} /><input value={featureSearch} onChange={(e) => setFeatureSearch(e.target.value)} placeholder="Find a feature" aria-label="Find a feature" data-testid="input-feature-search" /></div></div>
-                    {visibleFeatures.length ? <div className="sw-feature-rows" data-testid="list-features">{visibleFeatures.slice(0, 500).map(({ feature, index }) => <button type="button" key={feature.id ?? index} onClick={() => chooseFeature(index)} className={`sw-feature-row ${selectedFeature === index ? 'is-active' : ''}`} data-testid={`button-feature-${index}`}><span className="sw-feature-index">{String(index + 1).padStart(3, '0')}</span><span><strong>{featureLabel(feature, index)}</strong><small>{feature.geometry?.type ?? 'No geometry'}{feature.id !== undefined ? ` · ID ${feature.id}` : ''}</small></span><ChevronDown size={13} /></button>)}</div> : <div className="sw-feature-empty">No matching features.</div>}
-                    {visibleFeatures.length > 500 && <small className="sw-list-limit">Showing first 500 matches. Refine your search to narrow results.</small>}
+                    <div className="sw-subhead"><div><span className="sw-overline">FEATURES</span><strong>{draft.featureCount.toLocaleString()} records</strong></div><div className="sw-feature-search"><Search size={14} /><input value={featureSearch} onChange={(e) => setFeatureSearch(e.target.value)} placeholder="Find a feature" aria-label="Find a feature" data-testid="input-feature-search" /></div></div>
+                    {pageLoading ? <div role="status">Loading attribute page…</div> : visibleFeatures.length ? <div className="sw-feature-rows" data-testid="list-features">{visibleFeatures.map(({ feature, index, geometryType }) => <button type="button" key={index} aria-pressed={selectedFeature === index} onClick={() => void chooseFeature(index)} className={`sw-feature-row ${selectedFeature === index ? 'is-active' : ''}`} data-testid={`button-feature-${index}`}><span className="sw-feature-index">{String(index + 1).padStart(3, '0')}</span><span><strong>{featureLabel(edits[index] ?? feature, index)}</strong><small>{geometryType}{feature.id ? ` · ID ${feature.id}` : ''}</small></span><ChevronDown size={13} /></button>)}</div> : <div className="sw-feature-empty">No matching features.</div>}
+                    <div className="sw-pagination"><button type="button" disabled={pageLoading || pageOffset === 0} onClick={() => setPageOffset(Math.max(0, pageOffset - 100))}>Previous</button>
+                      <span>{page ? `${page.total ? page.offset + 1 : 0}–${page.offset + page.items.length} of ${page.total.toLocaleString()} matches` : ''}</span>
+                      <button type="button" disabled={pageLoading || page?.nextOffset == null} onClick={() => setPageOffset(page?.nextOffset ?? 0)}>Next</button></div>
                   </section>
                   <section className="sw-editor">
                     <div className="sw-subhead sw-editor-head"><div><span className="sw-overline">FEATURE EDITOR</span><strong>{currentFeature ? featureLabel(currentFeature, selectedFeature) : 'Select a feature'}</strong></div>{currentFeature && <span className="sw-draft-tag"><Pencil size={11} /> DRAFT</span>}</div>
                     {currentFeature ? <>
                       <label className="sw-json-label" htmlFor="sw-properties-json">Properties <span>JSON object</span></label>
-                      <textarea id="sw-properties-json" className="sw-json-editor" value={propertiesText} onChange={(e) => setPropertiesText(e.target.value)} onBlur={commitFeatureText} spellCheck={false} data-testid="input-feature-properties" />
+                      <textarea id="sw-properties-json" className="sw-json-editor" value={propertiesText} disabled={!!busy} onChange={(e) => setPropertiesText(e.target.value)} onBlur={commitFeatureText} spellCheck={false} data-testid="input-feature-properties" />
                       <label className="sw-json-label" htmlFor="sw-geometry-json">Geometry <span>GeoJSON · WGS84 coordinates</span></label>
-                      <textarea id="sw-geometry-json" className="sw-json-editor sw-geometry-editor" value={geometryText} onChange={(e) => setGeometryText(e.target.value)} onBlur={commitFeatureText} spellCheck={false} data-testid="input-feature-geometry" />
+                      <textarea id="sw-geometry-json" className="sw-json-editor sw-geometry-editor" value={geometryText} disabled={!!busy} onChange={(e) => setGeometryText(e.target.value)} onBlur={commitFeatureText} spellCheck={false} data-testid="input-feature-geometry" />
                       {editError && <div className="sw-edit-error" role="alert" data-testid="status-feature-edit-error"><AlertTriangle size={13} />{editError}</div>}
                       <div className="sw-editor-foot"><span>Change JSON, then save to apply it to this local working copy.</span><button type="button" onClick={commitFeatureText} data-testid="button-apply-feature-edit"><Check size={13} /> Apply draft</button></div>
                     </> : <div className="sw-editor-placeholder">Choose a feature to inspect or edit its attributes and WGS84 geometry.</div>}
                   </section>
                 </div>
-                <div className="sw-working-copy-banner"><Shield size={15} /><span><strong>Working copy only.</strong> Your edits remain a draft until saved, and never modify the imported source file.</span>{dirty && <button type="button" onClick={() => { if (layer) { setDraft(structuredClone(layer)); setEditError(''); } }} data-testid="button-discard-edits"><X size={13} /> Discard draft</button>}</div>
+                <div className="sw-working-copy-banner"><Shield size={15} /><span><strong>Working copy only.</strong> Your edits remain a draft until saved, and never modify the imported source file.</span>{dirty && <button type="button" onClick={() => { if (layer) { setDraft(layer); setEdits({}); setPropertiesText(JSON.stringify(selectedRecord?.properties ?? null, null, 2)); setGeometryText(JSON.stringify(selectedRecord?.geometry ?? null, null, 2)); setEditError(''); } }} data-testid="button-discard-edits"><X size={13} /> Discard draft</button>}</div>
               </div>}
           </section>
 

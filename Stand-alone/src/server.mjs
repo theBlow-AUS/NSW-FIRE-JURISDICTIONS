@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import { access, copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pipeline } from 'node:stream/promises';
 import { buildFireContext, lookupSpatialContext } from '@workspace/fire-data';
 import { GetFireContextQueryParams, GetFireContextResponse } from '@workspace/api-zod';
 import { createCache, log } from './cache.mjs';
@@ -62,13 +63,13 @@ export async function loadConfiguration(configPath, defaultsPath) {
   return { ...config, dataDirectory: resolve(dirname(filename), config.dataDirectory) };
 }
 
-async function readJson(req) {
+async function readJson(req, maximum = 256 * 1024 * 1024) {
   if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) throw new GisError('Use application/json for this operation.');
   const parts = [];
   let size = 0;
   for await (const part of req) {
     size += part.length;
-    if (size > 256 * 1024 * 1024) throw new GisError('The working-copy edit exceeds the 256 MiB request limit.', 413);
+    if (size > maximum) throw new GisError('The working-copy edit exceeds the request size limit.', 413);
     parts.push(part);
   }
   try { return JSON.parse(Buffer.concat(parts).toString('utf8')); }
@@ -135,12 +136,18 @@ export function createApplication({ publicDirectory, cache, gis, feeds, spatialL
           if (p.length === 5 && p[4] === 'import' && req.method === 'POST') return json(200, await gis.importFiles(projectId, req));
           if (p[4] === 'layers' && p[5]) {
             const layerId = p[5];
-            if (p.length === 6 && req.method === 'GET') return json(200, await gis.getLayer(projectId, layerId));
-            if (p.length === 6 && req.method === 'PUT') return json(200, await gis.saveLayer(projectId, layerId, await readJson(req)));
+            if (p.length === 6 && req.method === 'GET') return json(200, await gis.getLayer(projectId, layerId,
+              url.searchParams.has('bbox') ? url.searchParams.get('bbox').split(',').map(Number) : undefined));
+            if (p.length === 7 && p[6] === 'attributes' && req.method === 'GET') return json(200, await gis.attributes(projectId, layerId, {
+              offset: url.searchParams.get('offset') || 0, limit: url.searchParams.get('limit') || 100, search: url.searchParams.get('search') || '',
+            }));
+            if (p.length === 8 && p[6] === 'features' && req.method === 'GET') return json(200, await gis.feature(projectId, layerId, Number(p[7])));
+            if (p.length === 6 && req.method === 'PATCH') return json(200, await gis.patchLayer(projectId, layerId, await readJson(req, 16 * 1024 ** 2)));
+            if (p.length === 6 && req.method === 'PUT') throw new GisError('Whole-layer updates are disabled. Reload the workspace to use sparse feature edits.', 410);
             if (p.length === 6 && req.method === 'DELETE') return json(200, await gis.removeLayer(projectId, layerId));
             if (p.length === 7 && p[6] === 'export' && req.method === 'GET') {
               const councilField = url.searchParams.get('councilField');
-              const current = councilField ? await gis.getLayer(projectId, layerId) : null;
+              const current = councilField ? gis.list().find((entry) => entry.id === projectId)?.layers.find((entry) => entry.id === layerId) : null;
               if (councilField && !current.fields.includes(councilField)) throw new GisError('The selected council field does not exist.');
               const feedState = feeds.read();
               const exported = await gis.exportLayer(projectId, layerId, councilField ? (data) => enrichDangerRatings(data, feedState.dangerRegions, councilField,
@@ -151,7 +158,8 @@ export function createApplication({ publicDirectory, cache, gis, feeds, spatialL
               }
               res.setHeader('Content-Disposition', `attachment; filename="${exported.name}"`);
               res.setHeader('Content-Type', 'application/geo+json; charset=utf-8');
-              return json(200, exported.data);
+              await pipeline(createReadStream(exported.path), res);
+              return;
             }
           }
         }

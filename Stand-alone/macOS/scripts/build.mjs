@@ -22,6 +22,7 @@ const shared = join(output, 'shared/payload');
 await cp(join(shared, 'app'), join(app, 'app'), { recursive: true });
 await cp(join(shared, 'THIRD-PARTY-NOTICES.txt'), join(app, 'THIRD-PARTY-NOTICES.txt'));
 await cp(join(shared, 'GIS-WORKSPACE.md'), join(app, 'GIS-WORKSPACE.md'));
+await cp(join(shared, 'GIS-LARGE-LAYERS.md'), join(app, 'GIS-LARGE-LAYERS.md'));
 for (const directory of ['config', 'bin', 'operator']) await cp(join(source, directory), join(app, directory), { recursive: true });
 await writeFile(join(app, 'README.md'), (await readFile(join(source, 'README.md'), 'utf8')).replace('](../GIS-WORKSPACE.md)', '](GIS-WORKSPACE.md)'));
 await mkdir(join(tree, 'Library/LaunchDaemons'), { recursive: true });

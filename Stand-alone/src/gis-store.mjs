@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs';
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
@@ -8,6 +8,8 @@ import { promisify } from 'node:util';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import Busboy from 'busboy';
+import { buildIndex, openIndex, putFeature, describeIndex, queryAttributes, queryPreview } from './gis-index.mjs';
+import { collectionFeatures, writeCollection } from './gis-stream.mjs';
 
 const execute = promisify(execFile);
 const idPattern = /^[a-f0-9-]{36}$/;
@@ -65,16 +67,6 @@ export function validateCollection(value) {
     geometry(feature.geometry);
   }
   return value;
-}
-
-function describe(collection) {
-  const fields = new Set();
-  const geometryTypes = new Set();
-  for (const feature of collection.features) {
-    Object.keys(feature.properties || {}).forEach((name) => fields.add(name));
-    geometryTypes.add(feature.geometry?.type || 'Unmapped');
-  }
-  return { featureCount: collection.features.length, fields: [...fields], geometryType: [...geometryTypes].join(', ') || 'Empty' };
 }
 
 function safeUploadPath(name) {
@@ -160,6 +152,31 @@ export function createGisStore({ dataDirectory, maxImportBytes = 8 * 1024 ** 3, 
     } catch (error) { throw new GisError(`Local GDAL conversion failed: ${(error.stderr || error.message).slice(0, 1500)}`); }
     return JSON.parse(await readFile(join(output, 'result.json'), 'utf8'));
   });
+  const indexing = new Map();
+  const indexPath = (projectId, layerId) => join(projectPath(projectId), 'Working', `${assertId(layerId)}.sqlite`);
+  async function ensureIndex(projectId, layerId) {
+    const metadata = layer(projectId, layerId), filename = indexPath(projectId, layerId);
+    try { await stat(filename); return filename; } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (metadata.revision > 0) throw new GisError('The edited working index is missing. Restore the complete project backup; the original source has not been changed.', 409);
+    if (!indexing.has(filename)) indexing.set(filename, (async () => {
+      const temporary = `${filename}.${randomUUID()}.tmp`;
+      try {
+        await buildIndex(join(projectPath(projectId), 'Working', basename(metadata.workingFile || `${layerId}.geojson`)), temporary, validateCollection);
+        await rename(temporary, filename);
+      } finally { await rm(temporary, { force: true }); indexing.delete(filename); }
+    })());
+    await indexing.get(filename); return filename;
+  }
+  async function withIndex(projectId, layerId, operation) {
+    const db = openIndex(await ensureIndex(projectId, layerId));
+    try { return operation(db); }
+    catch (error) { if (error instanceof RangeError) throw new GisError(error.message); throw error; }
+    finally { db.close(); }
+  }
+  function indexedMetadata(db, metadata) {
+    const saved = db.prepare("SELECT value FROM state WHERE key='metadata'").get();
+    return { ...(saved ? JSON.parse(saved.value) : metadata), revision: Number(db.prepare("SELECT value FROM state WHERE key='revision'").get().value) };
+  }
   return {
     async initialise() {
       await mkdir(directory, { recursive: true });
@@ -169,6 +186,14 @@ export function createGisStore({ dataDirectory, maxImportBytes = 8 * 1024 ** 3, 
         const value = JSON.parse(await readFile(join(directory, entry.name, 'project.json'), 'utf8'));
         if (value.id !== entry.name || !Array.isArray(value.layers)) throw new Error(`Invalid saved GIS project ${entry.name}; the project has not been overwritten.`);
         projects.set(value.id, value);
+        // A committed SQLite edit remains authoritative if project.json could
+        // not be refreshed (e.g. power failure between the two writes).
+        for (let i = 0; i < value.layers.length; i++) {
+          try {
+            await stat(indexPath(value.id, value.layers[i].id));
+            value.layers[i] = await withIndex(value.id, value.layers[i].id, (db) => indexedMetadata(db, value.layers[i]));
+          } catch (error) { if (error.code !== 'ENOENT') throw error; }
+        }
       }
     },
     list() { return structuredClone([...projects.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))); },
@@ -189,26 +214,63 @@ export function createGisStore({ dataDirectory, maxImportBytes = 8 * 1024 ** 3, 
       await rename(projectPath(id), join(dataDirectory, 'gis-trash', `${id}-${Date.now()}`)); projects.delete(id);
       return { removed: true, archived: true };
     }); },
-    async getLayer(projectId, layerId) {
-      const metadata = layer(projectId, layerId);
-      const collection = JSON.parse(await readFile(join(projectPath(projectId), 'Working', basename(metadata.workingFile || `${layerId}.geojson`)), 'utf8'));
-      return { ...structuredClone(metadata), collection };
+    async getLayer(projectId, layerId, bbox) {
+      return withIndex(projectId, layerId, (db) => {
+        let metadata = indexedMetadata(db, layer(projectId, layerId));
+        if (metadata.bounds === undefined) metadata = { ...metadata, ...describeIndex(db) };
+        const b = bbox || metadata.bounds;
+        const extent = b ? [b[0] - 0.0001, b[1] - 0.0001, b[2] + 0.0001, b[3] + 0.0001] : [-180, -90, 180, 90];
+        return { ...metadata, ...queryPreview(db, bbox || extent) };
+      });
     },
-    saveLayer(projectId, layerId, change) { return exclusive(async () => {
-      const previous = layer(projectId, layerId);
-      const collection = validateCollection(change.collection);
-      if (typeof change.visible !== 'boolean' || !/^#[0-9a-f]{6}$/i.test(change.style?.color || '') ||
-          !Number.isFinite(change.style?.fillOpacity) || change.style.fillOpacity < 0 || change.style.fillOpacity > 1) throw new GisError('Invalid layer visibility or style.');
-      const metadata = { ...previous, ...describe(collection), name: title(change.name), visible: change.visible, style: change.style, editedAt: new Date().toISOString(), workingFile: `${layerId}-${randomUUID()}.geojson` };
-      await atomicJson(join(projectPath(projectId), 'Working', metadata.workingFile), collection);
+    async attributes(projectId, layerId, options) {
+      return withIndex(projectId, layerId, (db) => queryAttributes(db, options));
+    },
+    async feature(projectId, layerId, ordinal) {
+      if (!Number.isSafeInteger(ordinal) || ordinal < 0) throw new GisError('Invalid feature ordinal.');
+      return withIndex(projectId, layerId, (db) => {
+        const row = db.prepare('SELECT json FROM features WHERE ordinal=?').get(ordinal);
+        if (!row) throw new GisError('Feature not found.', 404);
+        return { feature: JSON.parse(row.json), ordinal, revision: Number(db.prepare("SELECT value FROM state WHERE key='revision'").get().value) };
+      });
+    },
+    patchLayer(projectId, layerId, change) { return exclusive(async () => {
+      const filename = await ensureIndex(projectId, layerId), db = openIndex(filename);
+      let metadata;
+      try {
+        db.exec('BEGIN IMMEDIATE;');
+        const previous = indexedMetadata(db, layer(projectId, layerId));
+        if (change.revision !== previous.revision) throw new GisError('The layer changed. Reload before saving; your draft has not been applied.', 409);
+        if (!Array.isArray(change.edits) || change.edits.length > 100) throw new GisError('At most 100 feature edits per save are allowed.');
+        if (typeof change.visible !== 'boolean' || !/^#[0-9a-f]{6}$/i.test(change.style?.color || '') ||
+          !Number.isFinite(change.style?.fillOpacity) || change.style.fillOpacity < 0 || change.style.fillOpacity > 1) throw new GisError('Invalid layer style.');
+        const seen = new Set();
+        for (const edit of change.edits) {
+          if (!Number.isSafeInteger(edit.ordinal) || edit.ordinal < 0 || seen.has(edit.ordinal) || !db.prepare('SELECT 1 FROM features WHERE ordinal=?').get(edit.ordinal)) throw new GisError('Invalid or duplicate feature ordinal.');
+          seen.add(edit.ordinal);
+          validateCollection({ type: 'FeatureCollection', features: [edit.feature] });
+          putFeature(db, edit.ordinal, edit.feature);
+        }
+        metadata = { ...previous, ...(change.edits.length ? describeIndex(db) : {}), name: title(change.name), visible: change.visible, style: change.style,
+          editedAt: new Date().toISOString(), revision: previous.revision + 1 };
+        db.prepare("UPDATE state SET value=? WHERE key='revision'").run(String(metadata.revision));
+        db.prepare("INSERT OR REPLACE INTO state VALUES ('metadata', ?)").run(JSON.stringify(metadata));
+        db.exec('COMMIT;');
+      } catch (error) { db.exec('ROLLBACK;'); throw error; } finally { db.close(); }
       const next = { ...project(projectId), layers: project(projectId).layers.map((entry) => entry.id === layerId ? metadata : entry) };
-      await persist(next); projects.set(projectId, next); return metadata;
+      projects.set(projectId, next);
+      await persist(next);
+      return metadata;
     }); },
+    saveLayer() {
+      throw new GisError('Whole-layer updates are disabled. Use revision-checked sparse feature edits.', 410);
+    },
     removeLayer(projectId, layerId) { return exclusive(async () => {
       const previous = layer(projectId, layerId);
       const value = { ...project(projectId), layers: project(projectId).layers.filter((entry) => entry.id !== layerId) };
       await persist(value); projects.set(projectId, value);
       await rm(join(projectPath(projectId), 'Working', basename(previous.workingFile || `${layerId}.geojson`)), { force: true });
+      await rm(indexPath(projectId, layerId), { force: true });
       return { removed: true, originalSourceRetained: true };
     }); },
     importFiles(projectId, request) { return exclusive(async () => {
@@ -233,25 +295,36 @@ export function createGisStore({ dataDirectory, maxImportBytes = 8 * 1024 ** 3, 
             const content = await readFile(join(sources, root), 'utf8');
             if (/<!\s*(?:DOCTYPE|ENTITY)|<NetworkLink\b/i.test(content)) throw new GisError('External entities and KML network links are not imported.');
           }
-          if (/\.(?:geojson|json)$/i.test(root)) {
-            const content = JSON.parse(await readFile(join(sources, root), 'utf8'));
-            if (content.type !== 'FeatureCollection' && content.type !== 'Feature') throw new GisError('Only GeoJSON feature data is accepted for JSON imports.');
+          let direct = /\.(?:geojson|json)$/i.test(root), prebuilt = null;
+          if (direct) await mkdir(output, { recursive: true });
+          if (direct) {
+            const id = randomUUID();
+            try {
+              prebuilt = { id, description: await buildIndex(join(sources, root), indexPath(projectId, id), validateCollection) };
+            } catch (error) {
+              await rm(indexPath(projectId, id), { force: true });
+              if (error.code !== 'GEOJSON_CRS') throw error;
+              direct = false; // Preserve legacy projected-GeoJSON support via GDAL.
+            }
           }
-          const result = await convert(join(sources, root), output);
+          const result = direct ? { warnings: [], layers: [{ file: root, name: basename(root), sourceFormat: 'GeoJSON', crs: 'EPSG:4326' }] } : await convert(join(sources, root), output);
           warnings.push(...result.warnings);
           for (const converted of result.layers) {
-            const collection = validateCollection(JSON.parse(await readFile(join(output, basename(converted.file)), 'utf8')));
-            const id = randomUUID();
+            const id = prebuilt?.id || randomUUID();
+            const convertedFile = direct ? join(sources, root) : join(output, basename(converted.file));
+            const description = prebuilt?.description || await buildIndex(convertedFile, indexPath(projectId, id), validateCollection);
             const metadata = {
               id, name: converted.name, sourceName: root, sourceFormat: converted.sourceFormat,
               crs: converted.crs || (/kml|geojson/i.test(converted.sourceFormat) ? 'WGS84 (EPSG:4326)' : null),
               sourceCrsWkt: converted.sourceCrsWkt || null,
-              ...describe(collection), visible: true, style: { color: '#a8442d', fillOpacity: 0.25 },
+              ...description, revision: 0, visible: true, style: { color: '#a8442d', fillOpacity: 0.25 },
               sourceUpdatedAt: null, importedAt: new Date().toISOString(),
               warning: 'Working coordinates are WGS84. Source styling, attachments, relationships and geodatabase rules are not GeoJSON features.',
-              importId, workingFile: `${id}.geojson`, workingCrs: 'EPSG:4326', transformations: ['GDAL/OGR vector conversion', 'Reproject to EPSG:4326', 'RFC 7946 GeoJSON'],
+              importId, workingFile: `${id}.geojson`, workingCrs: 'EPSG:4326',
+              transformations: direct ? ['Streaming WGS84 GeoJSON validation', 'Local disk-backed working index'] : ['GDAL/OGR vector conversion', 'Reproject to EPSG:4326', 'RFC 7946 GeoJSON'],
             };
-            await atomicJson(join(projectPath(projectId), 'Working', `${id}.geojson`), collection);
+            // Keep a streaming WGS84 working snapshot for recovery/migration.
+            await pipeline((await import('node:fs')).createReadStream(convertedFile), createWriteStream(join(projectPath(projectId), 'Working', `${id}.geojson`), { flags: 'wx', mode: 0o600 }));
             imported.push(metadata);
           }
         } catch (error) { warnings.push(`${root}: ${error.message}`); }
@@ -261,29 +334,58 @@ export function createGisStore({ dataDirectory, maxImportBytes = 8 * 1024 ** 3, 
       await persist(next); projects.set(projectId, next);
       return { layers: imported, warnings };
     }); },
-    async exportLayer(projectId, layerId, decorate) {
+    exportLayer(projectId, layerId, decorate) { return exclusive(async () => {
       const metadata = layer(projectId, layerId);
-      validateCollection((await this.getLayer(projectId, layerId)).collection);
       const temporary = join(projectPath(projectId), 'Exports', `.validate-${randomUUID()}`);
-      let data;
-      try {
-        const converted = await convert(join(projectPath(projectId), 'Working', basename(metadata.workingFile || `${layerId}.geojson`)), temporary, true);
-        data = JSON.parse(await readFile(join(temporary, basename(converted.layers[0].file)), 'utf8'));
-        validateCollection(data);
-      } finally { await rm(temporary, { recursive: true, force: true }); }
-      const enriched = decorate ? decorate(data) : null;
-      if (enriched) data = enriched.data;
+      await mkdir(temporary, { recursive: true });
       const filename = `${layerId}-${randomUUID()}.geojson`;
+      const path = join(projectPath(projectId), 'Exports', filename);
+      const db = openIndex(await ensureIndex(projectId, layerId));
+      let enriched = decorate ? decorate({ type: 'FeatureCollection', features: [] }).provenance : null, exportedCount = 0;
+      async function* validatedBatches() {
+        let batch = [], bytes = 0, batchNumber = 0;
+        async function* flush() {
+          const input = join(temporary, `batch-${batchNumber++}.geojson`), output = `${input}.validated`;
+          await writeCollection(input, batch);
+          const result = await convert(input, output, true);
+          if (result.layers.length !== 1) throw new GisError('Validation must return exactly one layer.');
+          let count = 0;
+          for await (const feature of collectionFeatures(join(output, basename(result.layers[0].file)))) {
+            validateCollection({ type: 'FeatureCollection', features: [feature] });
+            count++; exportedCount++;
+            if (decorate) {
+              const decorated = decorate({ type: 'FeatureCollection', features: [feature] });
+              if (!enriched) enriched = { ...decorated.provenance, counts: { matched: 0, unmatched: 0, ambiguous: 0 } };
+              for (const k of Object.keys(enriched.counts)) enriched.counts[k] += decorated.provenance.counts[k];
+              yield decorated.data.features[0];
+            } else yield feature;
+          }
+          if (count !== batch.length) throw new GisError('Validation changed the feature count; no export was published.');
+          await rm(input, { force: true }); await rm(output, { recursive: true, force: true });
+          batch = []; bytes = 0;
+        }
+        for (const row of db.prepare('SELECT json FROM features ORDER BY ordinal').iterate()) {
+          if (batch.length && (bytes + Buffer.byteLength(row.json) > 8 * 1024 ** 2 || batch.length >= 10000)) yield* flush();
+          const feature = JSON.parse(row.json);
+          validateCollection({ type: 'FeatureCollection', features: [feature] });
+          batch.push(feature); bytes += Buffer.byteLength(row.json);
+        }
+        if (batch.length) yield* flush();
+      }
+      try {
+        await writeCollection(path, validatedBatches());
+        if (exportedCount !== metadata.featureCount) throw new GisError('Export count does not match the working layer.');
+      } catch (error) { await rm(path, { force: true }); throw error; }
+      finally { db.close(); await rm(temporary, { recursive: true, force: true }); }
       const manifest = {
         exportedAt: new Date().toISOString(), project: { id: projectId, name: project(projectId).name },
         layer: metadata, coordinateSystem: 'WGS84 longitude/latitude (RFC 7946)',
         validation: 'GeoJSON structure, finite WGS84 coordinates, closed rings, GDAL/GEOS ST_IsValid, RFC 7946 export normalization. No automatic topology repair.',
         sourceManifest: `Sources/${metadata.importId}.manifest.json`,
-        regionalEnrichment: enriched?.provenance || null,
+        regionalEnrichment: enriched,
       };
-      await atomicJson(join(projectPath(projectId), 'Exports', filename), data);
       await atomicJson(join(projectPath(projectId), 'Exports', `${filename}.manifest.json`), manifest);
-      return { data, manifest, name: `${metadata.name.replace(/[^a-zA-Z0-9_-]+/g, '-').slice(0, 100) || 'layer'}.geojson` };
-    },
+      return { path, manifest, name: `${metadata.name.replace(/[^a-zA-Z0-9_-]+/g, '-').slice(0, 100) || 'layer'}.geojson` };
+    }); },
   };
 }

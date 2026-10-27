@@ -63,6 +63,7 @@ await writeFile(join(payload, 'WINSW-LICENSE.txt'), await licenseResponse.text()
 
 const importFrom = async (require, name) => import(pathToFileURL(require.resolve(name)).href);
 await cp(join(source, 'GIS-WORKSPACE.md'), join(payload, 'GIS-WORKSPACE.md'));
+await cp(join(source, 'GIS-LARGE-LAYERS.md'), join(payload, 'GIS-LARGE-LAYERS.md'));
 const [{ build: viteBuild }, { default: react }, { default: tailwindcss }] = await Promise.all([
   importFrom(frontendRequire, 'vite'), importFrom(frontendRequire, '@vitejs/plugin-react'), importFrom(frontendRequire, '@tailwindcss/vite'),
 ]);

@@ -131,6 +131,12 @@
 .sw-inspector-content { padding: 12px; }
 .sw-map { position: relative; height: clamp(230px, 30vw, 360px); overflow: hidden; border: 1px solid #d7dfd6; border-radius: 9px; background-color: #f2f5ee; background-image: radial-gradient(#d7e0d7 0.7px, transparent .7px); background-size: 13px 13px; }
 .sw-map svg { width: 100%; height: 100%; display: block; }
+.sw-map-controls { position: absolute; z-index: 2; top: 45px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 4px; }
+.sw-map-controls button { padding: 5px 7px; font-size: 10px; background: #fffdf7; }
+.sw-map > .sw-feed-note { position: absolute; bottom: 0; background: #fffdf7ed; padding: 6px; font-size: 10px; margin: 0; }
+.sw-pagination { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 12px; font-size: 11px; }
+.sw-pagination button { border: 1px solid #d7dfd6; border-radius: 5px; padding: 5px; background: #fffdf7; }
+.sw-pagination button:disabled { opacity: 0.45; }
 .sw-map-feature { cursor: pointer; transition: opacity .15s; }
 .sw-map-feature:hover { opacity: .75; }
 .sw-map-coord { fill: #849187; font: 9px 'Space Mono', monospace; }
@@ -150,7 +156,8 @@
 .sw-feature-search input { width: 100%; height: 28px; padding: 0 6px 0 25px; border: 1px solid #e0e5dc; outline: none; border-radius: 6px; background: #fffefb; font-size: 9px !important; }
 .sw-feature-rows { max-height: 220px; overflow: auto; }
 .sw-feature-row { display: flex; align-items: center; width: 100%; gap: 8px; min-height: 43px; padding: 6px 9px; text-align: left; border: 0; border-bottom: 1px solid #eef0e9; background: transparent; }
-.sw-feature-row:hover, .sw-feature-row.is-active { background: #edf3eb; }
+.sw-feature-row:hover { background: #f7f8f3; }
+.sw-feature-row.is-active { background: #edf3eb; box-shadow: inset 3px 0 #39796b; }
 .sw-feature-index { display: grid; place-items: center; width: 27px; height: 25px; flex: none; border-radius: 5px; background: #f0f1e9; color: #7d8b80; font: 9px 'Space Mono', monospace; }
 .sw-feature-row > span:nth-child(2) { min-width: 0; flex: 1; }
 .sw-feature-row strong, .sw-feature-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

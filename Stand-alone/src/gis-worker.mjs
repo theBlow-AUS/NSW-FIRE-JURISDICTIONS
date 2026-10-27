@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectionFeatures } from './gis-stream.mjs';
 
 // Each import runs in a short-lived process: engine memory is reclaimed afterwards.
 // No user-supplied command line or executable is run.
@@ -40,10 +41,9 @@ async function convert() {
         '-sql', `SELECT * FROM "${layer.name.replaceAll('"', '""')}"`];
       const converted = await Gdal.ogr2ogr(dataset, options, name);
       // ogr2ogr writes through a local NODEFS mount, not a network service.
-      const geojson = JSON.parse(await readFile(converted.real, 'utf8'));
-      if (geojson.type !== 'FeatureCollection') throw new Error('The conversion did not produce a FeatureCollection.');
-      delete geojson.crs;
-      await writeFile(converted.real, JSON.stringify(geojson));
+      // RFC7946 output already has WGS84 coordinates and no CRS member.
+      // Validate the envelope without rehydrating an entire output layer.
+      for await (const _feature of collectionFeatures(converted.real)) { /* streamed */ }
       const detail = details.layers?.find((entry) => entry.name === layer.name);
       const wkt = detail?.geometryFields?.[0]?.coordinateSystem?.wkt || detail?.srs?.wkt || null;
       const epsg = wkt?.match(/(?:ID|AUTHORITY)\["EPSG",\s*"?(\d+)"?\]\s*\]?\s*$/)?.[1];
@@ -56,7 +56,8 @@ async function convert() {
     await Gdal.close(dataset);
   }
   if (!layers.length) throw new Error('No supported vector layers were found.');
-  await writeFile(join(output, 'result.json'), JSON.stringify({ layers, warnings: [...new Set(messages)].slice(0, 20) }));
+  await writeFile(join(output, 'result.json'), JSON.stringify({ layers, warnings: [...new Set(messages)].slice(0, 20),
+    resources: { peakRssMiB: process.resourceUsage().maxRSS / 1024 } }));
 }
 
 convert().catch((error) => { console.error(error.message); process.exitCode = 1; });

@@ -24,6 +24,8 @@ export interface GisLayerStyle {
 }
 
 export interface GisLayerSummary {
+  revision?: number;
+  bounds?: number[] | null;
   id: string;
   name: string;
   sourceName: string;
@@ -41,6 +43,15 @@ export interface GisLayerSummary {
 
 export interface GisLayer extends GisLayerSummary {
   collection: GeoJsonCollection;
+  ordinals?: number[];
+  truncated?: boolean;
+}
+
+export interface AttributePage {
+  items: { ordinal: number; feature: GeoJsonFeature; geometryType: string }[];
+  total: number;
+  offset: number;
+  nextOffset: number | null;
 }
 
 export interface GisProject {
@@ -145,18 +156,27 @@ export function importGisFiles(id: string, files: FileList | File[]): Promise<{ 
   return request(`/api/gis/projects/${encodeURIComponent(id)}/import`, { method: 'POST', body });
 }
 
-export function getGisLayer(projectId: string, layerId: string): Promise<GisLayer> {
-  return request(`/api/gis/projects/${encodeURIComponent(projectId)}/layers/${encodeURIComponent(layerId)}`);
+export function getGisLayer(projectId: string, layerId: string, bbox?: number[]): Promise<GisLayer> {
+  return request(`/api/gis/projects/${encodeURIComponent(projectId)}/layers/${encodeURIComponent(layerId)}${bbox ? `?bbox=${bbox.join(',')}` : ''}`);
 }
 
-export function saveGisLayer(projectId: string, layerId: string, layer: GisLayer): Promise<GisLayerSummary> {
+export function getGisAttributes(projectId: string, layerId: string, offset: number, search: string): Promise<AttributePage> {
+  return request(`/api/gis/projects/${projectId}/layers/${layerId}/attributes?offset=${offset}&search=${encodeURIComponent(search)}`);
+}
+
+export function getGisFeature(projectId: string, layerId: string, ordinal: number): Promise<{ feature: GeoJsonFeature; ordinal: number; revision: number }> {
+  return request(`/api/gis/projects/${projectId}/layers/${layerId}/features/${ordinal}`);
+}
+
+export function saveGisLayer(projectId: string, layerId: string, layer: GisLayerSummary, edits: { ordinal: number; feature: GeoJsonFeature }[] = []): Promise<GisLayerSummary> {
   return request(`/api/gis/projects/${encodeURIComponent(projectId)}/layers/${encodeURIComponent(layerId)}`, {
-    method: 'PUT',
+    method: 'PATCH',
     body: JSON.stringify({
       name: layer.name,
       visible: layer.visible,
       style: layer.style,
-      collection: layer.collection,
+      revision: layer.revision ?? 0,
+      edits,
     }),
   });
 }

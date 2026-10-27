@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-const app = resolve('generated-artifacts/standalone/payload/app');
+const app = resolve(process.env.GIS_TEST_APP_DIR || 'generated-artifacts/standalone/payload/app');
 const { createApplication, createGisStore, createLiveFeeds, parseFeed, enrichDangerRatings } = await import(pathToFileURL(join(app, 'server.mjs')));
 const sample = { type: 'FeatureCollection', features: [{ type: 'Feature', id: 'source-1', properties: { name: 'Sydney', council: 'Sydney' }, geometry: { type: 'Point', coordinates: [151.2, -33.8] } }] };
 const regionsXml = `<FireDangerMap>${Array.from({ length: 20 }, (_, i) => `<District><Name>Region ${i}</Name><RegionNumber>${i}</RegionNumber><Councils>${i ? 'Council ' + i : 'Sydney'}</Councils><DangerLevelToday>HIGH</DangerLevelToday><DangerLevelTomorrow>MODERATE</DangerLevelTomorrow><FireBanToday>No</FireBanToday><FireBanTomorrow>Yes</FireBanTomorrow></District>`).join('')}</FireDangerMap>`;
@@ -87,7 +87,7 @@ test('real local import/edit/export survives restart, leaves sources untouched, 
   assert.equal(working.crs, 'EPSG:4326');
   working.collection.features[0].properties.name = 'Edited working copy';
   working.collection.features[0].geometry.coordinates = [151.3, -33.7];
-  assert.equal((await fetch(base + layerUrl, json('PUT', working))).status, 200);
+  assert.equal((await fetch(base + layerUrl, json('PATCH', { ...working, edits: [{ ordinal: 0, feature: working.collection.features[0] }] }))).status, 200);
   const saved = await (await fetch(base + layerUrl)).json();
   assert.equal(saved.collection.features[0].properties.name, 'Edited working copy');
   const exportedResponse = await fetch(base + layerUrl + '/export');
@@ -102,7 +102,7 @@ test('real local import/edit/export survives restart, leaves sources untouched, 
   const restarted = createGisStore({ dataDirectory: directory }); await restarted.initialise();
   assert.equal((await restarted.getLayer(created.id, id)).collection.features[0].properties.name, 'Edited working copy');
   working.collection.features[0].geometry.coordinates = [500, -33.7];
-  assert.equal((await fetch(base + layerUrl, json('PUT', working))).status, 400);
+  assert.equal((await fetch(base + layerUrl, json('PATCH', { ...saved, edits: [{ ordinal: 0, feature: working.collection.features[0] }] }))).status, 400);
   assert.equal((await fetch(base + '/api/gis/projects', { ...json('POST', { name: 'Should fail' }), headers: { 'Content-Type': 'application/json', Origin: 'https://untrusted.example' } })).status, 403);
   assert.equal((await fetch(base + layerUrl, { method: 'DELETE' })).status, 200);
   assert.ok((await readdir(join(directory, 'gis-projects', created.id, 'Sources'))).includes(disk.imports[0].id));
