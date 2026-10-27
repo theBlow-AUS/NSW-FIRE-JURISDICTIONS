@@ -70,3 +70,31 @@ mtime_ms = 1792732865233
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/41488d5d-dc29-446e-9a9e-f0601a310695/c76a549e-6f36-4d76-a913-36176be53a66"
 storage_version_token = "1792732872151732"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "vuCL6qRS0toetACM0UFL4"
+uri = "file://standalone-installers/NSW-Fire-Coverage-1.1.0-x64.msi"
+type = "unspecified"
+title = "Windows x64 installer — 1.1.0"
+description = "Standalone GIS workspace and cached RFS feeds. Default port 8080. Unsigned; pilot native installation before rollout."
+logical_id = "a457ce6e-1087-495f-be22-f845f43c70d8"
+content_hash = "sha256:0bfbe0cf29bf5fdb4f9fd031e9384179c8d95634b5d9b0c2496a8b70a09c5beb"
+size = 49010176
+mtime_ms = 1793134488571
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/a457ce6e-1087-495f-be22-f845f43c70d8/5157c3c2-21c2-4dc5-bda2-281252caed0e"
+storage_version_token = "1793134664902924"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "qf4pAT1hfvqAWRzjjOHyi"
+uri = "file://standalone-installers/NSW-Fire-Coverage-1.1.0-macOS-Intel-AppleSilicon.pkg"
+type = "unspecified"
+title = "macOS Intel + Apple Silicon installer — 1.1.0"
+description = "Native standalone installation for both Mac architectures. Default port 5400. Unsigned/not notarized; pilot before rollout."
+logical_id = "ea93f072-b547-407d-9aae-b02a4335cd48"
+content_hash = "sha256:a91b6ad1d48cc9d3c16ca3abcfbaef6efb1488dac04894cac0db9b2cf85f63e7"
+size = 87696482
+mtime_ms = 1793134488503
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/ea93f072-b547-407d-9aae-b02a4335cd48/2b649edc-9af9-4960-86b1-6dff9236b17a"
+storage_version_token = "1793134666896648"
+content_type = "application/octet-stream"
