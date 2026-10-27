@@ -13,10 +13,11 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import urllib.request
 
 root, source, output, version = map(str, sys.argv[1:])
-root, source, output = Path(root), Path(source), Path(output)
+root, source, output = Path(root).resolve(), Path(source).resolve(), Path(output).resolve()
 work = output / "package-work"
 shutil.rmtree(work, ignore_errors=True)
 component = work / "NSWFireCoverage.pkg"
@@ -30,17 +31,20 @@ scripts.mkdir(parents=True, exist_ok=True)
 def archive(directory, destination):
     members = [Path(".")] + sorted(directory.rglob("*"))
     names = [str(p if p == Path(".") else p.relative_to(directory)) for p in members]
-    process = subprocess.Popen(
-        ["cpio", "--null", "--create", "--format=odc", "--owner=0:0"],
-        cwd=directory, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    process.stdin.write(b"\0".join(name.encode() for name in names) + b"\0")
-    process.stdin.close()
-    with destination.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as compressed:
-        shutil.copyfileobj(process.stdout, compressed)
-    error = process.stderr.read().decode()
-    if process.wait() != 0:
-        raise RuntimeError(error)
+    # A file-backed member list avoids deadlocking when cpio fills stdout before
+    # consuming a filename list larger than the host's small pipe buffer.
+    with tempfile.TemporaryFile() as filelist, tempfile.TemporaryFile() as errors:
+        filelist.write(b"\0".join(name.encode() for name in names) + b"\0")
+        filelist.seek(0)
+        process = subprocess.Popen(
+            ["cpio", "--null", "--create", "--format=odc", "--owner=0:0"],
+            cwd=directory, stdin=filelist, stdout=subprocess.PIPE, stderr=errors,
+        )
+        with destination.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as compressed:
+            shutil.copyfileobj(process.stdout, compressed)
+        if process.wait() != 0:
+            errors.seek(0)
+            raise RuntimeError(errors.read().decode())
 
 
 for name in ("preinstall", "postinstall"):

@@ -5,3 +5,4 @@
 - [Standalone Windows distribution](standalone-windows.md) — Server 2022/Windows 10 x64 MSI must be Replit-independent; live NSW services remain allowed.
 - [macOS standalone distribution](standalone-macos.md) — native Intel/Apple Silicon, port 5400, no Replit runtime; distinguish binary compatibility from OS security support.
 - [GitHub installer storage](github-installer-storage.md) — verify LFS transport separately from repository write permissions; never push unavailable installer pointers.
+- [Portable GIS runtime](portable-gis-runtime.md) — isolated WASM conversions avoid shared-engine state; asset lookup has important CWD and Windows path constraints.

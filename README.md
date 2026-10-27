@@ -110,6 +110,22 @@ The packager reads `/api/rfs/snapshot` through the workspace proxy without initi
 
 ## Stand-alone Windows MSI
 
+### Standalone GIS workspace and live feeds — 1.1.0
+
+The Windows and macOS installers now include a local GIS project workspace at `/workspace`: FileGDB directories (including feature-dataset layers), KML/KMZ and GeoJSON imports; retained `.lyr` references; source/working-copy separation; attribute/geometry edits; visible-layer/incident overlays; and validated WGS84 RFC 7946 GeoJSON exports with provenance. Regional danger/ban enrichment requires a confirmed council field and reports exact, unmatched or ambiguous council-name joins.
+
+The local backend independently caches all five official RFS feeds:
+
+- https://www.rfs.nsw.gov.au/feeds/majorIncidents.json
+- https://www.rfs.nsw.gov.au/feeds/majorIncidents.xml
+- https://www.rfs.nsw.gov.au/feeds/fdrToban.xml
+- https://www.rfs.nsw.gov.au/feeds/fdrTobanRSS.xml
+- https://www.rfs.nsw.gov.au/feeds/major-Fire-Updates.xml
+
+Feed failures retain the last good snapshot with visible dates and warnings. The existing permit schedule and FRNSW precedence/year-round permit rule are unchanged. No Replit runtime or separate Node/GDAL install is used. The hosted checker and double-click HTML export do not include this server-backed workspace.
+
+**[Download the installers](standalone-installers/README.md)** · **[GIS features, sources, limits and security](Stand-alone/GIS-WORKSPACE.md)**. Use a trusted private LAN: GIS mutation endpoints are not authenticated. Installers remain unsigned and need native OS pilot validation.
+
 For the **macOS Intel/Apple Silicon installer**, see **[Stand-alone/macOS/README.md](Stand-alone/macOS/README.md)**. Its default port is **5400** and it runs the same Replit-independent local server with native runtimes for both architectures.
 
 For a self-hosted installation on Windows Server 2022 or Windows 10 x64, see **[Stand-alone/README.md](Stand-alone/README.md)**. This separate build bundles the Windows runtime, serves the website and API locally, and runs the scheduled RFS updater with a local disk cache. It does not use Replit services or require a separately installed Node runtime/database.

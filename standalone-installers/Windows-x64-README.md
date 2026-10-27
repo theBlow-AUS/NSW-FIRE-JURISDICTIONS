@@ -1,5 +1,7 @@
 # Stand-alone Windows installation
 
+**Release 1.1.0** adds local GIS projects, FileGDB/KML/KMZ imports, working-copy edits, validated GeoJSON exports and five cached live RFS feeds. See [GIS-WORKSPACE.md](GIS-WORKSPACE.md) for exact sources, configuration, limits and security.
+
 **macOS:** For the Intel/Apple Silicon `.pkg` installer with default port **5400**, see [macOS/README.md](macOS/README.md). The Windows MSI below remains on its original default port.
 
 Self-hosted **NSW Fire Coverage** for **Windows Server 2022 x64** and **Windows 10 x64**. Wired and Wi-Fi networks are both supported.
@@ -10,18 +12,18 @@ This is **self-hosted, not internet-disconnected**. Official NSW public data ser
 
 ## Install
 
-1. Obtain `NSW-Fire-Coverage-1.0.0-x64.msi` and its SHA-256 file.
+1. Obtain `NSW-Fire-Coverage-1.1.0-x64.msi` and its SHA-256 file.
 2. Check the hash in PowerShell:
    ```powershell
-   Get-FileHash .\NSW-Fire-Coverage-1.0.0-x64.msi -Algorithm SHA256
+   Get-FileHash .\NSW-Fire-Coverage-1.1.0-x64.msi -Algorithm SHA256
    ```
 3. Run the MSI with an administrator account, or use an elevated terminal:
    ```powershell
-   msiexec.exe /i "NSW-Fire-Coverage-1.0.0-x64.msi" /l*v "$env:TEMP\NSWFireCoverage-install.log"
+   msiexec.exe /i "NSW-Fire-Coverage-1.1.0-x64.msi" /l*v "$env:TEMP\NSWFireCoverage-install.log"
    ```
    For managed silent installation:
    ```powershell
-   msiexec.exe /i "NSW-Fire-Coverage-1.0.0-x64.msi" /qn /norestart /l*v "$env:TEMP\NSWFireCoverage-install.log"
+   msiexec.exe /i "NSW-Fire-Coverage-1.1.0-x64.msi" /qn /norestart /l*v "$env:TEMP\NSWFireCoverage-install.log"
    ```
 4. Open **http://localhost:8080/** or use the **NSW Fire Coverage** Start menu shortcut.
 
@@ -153,7 +155,7 @@ Build a higher three-part MSI version for each release. Installation stops and r
 Uninstall using Windows Apps/Programs or the matching MSI:
 
 ```powershell
-msiexec.exe /x "NSW-Fire-Coverage-1.0.0-x64.msi" /qn /norestart
+msiexec.exe /x "NSW-Fire-Coverage-1.1.0-x64.msi" /qn /norestart
 ```
 
 The service and installed binaries are removed. ProgramData is deliberately retained. If retiring the server, back it up and remove it manually after uninstall. If you enabled the optional firewall rule, remove it:
@@ -184,7 +186,7 @@ The build:
 
 Outputs:
 
-- `Stand-alone/dist/NSW-Fire-Coverage-1.0.0-x64.msi` and matching `.sha256`
+- `Stand-alone/dist/NSW-Fire-Coverage-1.1.0-x64.msi` and matching `.sha256`
 - `generated-artifacts/standalone/` containing the staging payload and generated `product.wxs`
 
 Source, configuration templates, and build scripts are tracked in Git. Large generated installers, downloaded runtimes, and staged payloads are excluded from Git/deployment output. Attach the MSI and checksum to a GitHub Release if your organisation distributes builds that way.

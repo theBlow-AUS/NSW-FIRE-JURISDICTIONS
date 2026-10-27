@@ -16,7 +16,7 @@ const api = join(root, 'artifacts/api-server');
 const frontendRequire = createRequire(join(frontend, 'package.json'));
 const backendRequire = createRequire(join(api, 'package.json'));
 const lock = JSON.parse(await readFile(join(source, 'dependencies.lock.json'), 'utf8'));
-const version = process.env.INSTALLER_VERSION || '1.0.0';
+const version = process.env.INSTALLER_VERSION || '1.1.0';
 if (!/^\d{1,3}\.\d{1,3}\.\d{1,5}$/.test(version)) throw new Error('INSTALLER_VERSION must be a three-part MSI version.');
 const versionParts = version.split('.').map(Number);
 if (versionParts[0] > 255 || versionParts[1] > 255 || versionParts[2] > 65535) throw new Error('MSI version limits are 255.255.65535.');
@@ -62,6 +62,7 @@ await writeFile(join(payload, 'WINSW-LICENSE.txt'), await licenseResponse.text()
 }
 
 const importFrom = async (require, name) => import(pathToFileURL(require.resolve(name)).href);
+await cp(join(source, 'GIS-WORKSPACE.md'), join(payload, 'GIS-WORKSPACE.md'));
 const [{ build: viteBuild }, { default: react }, { default: tailwindcss }] = await Promise.all([
   importFrom(frontendRequire, 'vite'), importFrom(frontendRequire, '@vitejs/plugin-react'), importFrom(frontendRequire, '@tailwindcss/vite'),
 ]);
@@ -71,6 +72,7 @@ await viteBuild({
   root: frontend,
   base: '/',
   mode: 'production',
+  define: { 'import.meta.env.VITE_STANDALONE_MODE': JSON.stringify('true') },
   resolve: {
     alias: { '@': join(frontend, 'src'), '@assets': join(root, 'attached_assets') },
     dedupe: ['react', 'react-dom'],
@@ -100,13 +102,14 @@ await viteBuild({
 
 const { build: esbuild } = backendRequire('esbuild');
 const serverBuild = await esbuild({
-  entryPoints: [join(source, 'src/server.mjs'), join(source, 'src/cache.mjs')],
+  entryPoints: [join(source, 'src/server.mjs'), join(source, 'src/cache.mjs'), join(source, 'src/gis-worker.mjs')],
   outdir: join(payload, 'app'),
   outExtension: { '.js': '.mjs' },
   bundle: true,
   platform: 'node',
   format: 'esm',
   target: 'node22',
+  nodePaths: [join(api, 'node_modules')],
   minify: false,
   sourcemap: false,
   metafile: true,
@@ -118,6 +121,28 @@ const serverBuild = await esbuild({
   },
   banner: { js: "import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
 });
+
+// The portable engine is already a self-contained CommonJS bundle plus WASM/data.
+// Keep it replaceable and separate from our bundle (LGPL); no target GDAL install.
+const engineRoot = dirname(backendRequire.resolve('gdal3.js/node'));
+const engineLock = JSON.parse(await readFile(join(source, 'gdal.lock.json'), 'utf8'));
+if (JSON.parse(await readFile(join(engineRoot, 'package.json'), 'utf8')).version !== engineLock.version) throw new Error('Unexpected portable GDAL package version.');
+const engineTarget = join(payload, 'app/vendor/gdal');
+await mkdir(engineTarget, { recursive: true });
+for (const name of ['gdal3.node.js', 'gdal3WebAssembly.data', 'gdal3WebAssembly.wasm']) {
+  if (hash(await readFile(join(engineRoot, 'dist/package', name))) !== engineLock.files[name]) throw new Error(`Portable GDAL checksum mismatch: ${name}`);
+  await cp(join(engineRoot, 'dist/package', name), join(engineTarget, name));
+}
+await cp(join(engineRoot, 'package.json'), join(engineTarget, 'upstream-package.json'));
+for (const name of (await readdir(engineRoot)).filter((name) => /^(license|copying|notice)(\.|$)/i.test(name))) {
+  await cp(join(engineRoot, name), join(engineTarget, name));
+}
+await writeFile(join(engineTarget, 'SOURCE.txt'), [
+  'Unmodified gdal3.js 2.8.1, LGPL-2.1-or-later.',
+  `Corresponding source and build scripts: ${engineLock.source}`,
+  'Library files are separate and may be replaced with a compatible build.',
+  'GDAL/PROJ and other compiled components have their own upstream licenses.',
+].join('\n'));
 
 // Retain upstream notices for every packaged third-party dependency used by either bundle.
 const licenses = new Map();
@@ -145,6 +170,7 @@ await writeFile(join(payload, 'THIRD-PARTY-NOTICES.txt'), [
   'Node.js licence: runtime/NODE-LICENSE.txt',
   ...(sharedOnly ? [] : ['WinSW licence: WINSW-LICENSE.txt']),
   'The application data remains subject to the official NSW source terms and attribution.',
+  'Portable GDAL/OGR: app/vendor/gdal. gdal3.js 2.8.1 (LGPL-2.1-or-later); source and replacement information: app/vendor/gdal/SOURCE.txt.',
   ...[...licenses.values()].sort(),
 ].join('\n\n' + '='.repeat(72) + '\n\n'));
 

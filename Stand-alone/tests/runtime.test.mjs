@@ -161,7 +161,7 @@ test('packaged assets contain no Replit/development or remote-font connections a
 });
 
 test('MSI installs an automatic LocalService service and grants only local data access before startup', async () => {
-  const filename = resolve('generated-artifacts/standalone/NSW-Fire-Coverage-1.0.0-x64.msi');
+  const filename = resolve(`generated-artifacts/standalone/NSW-Fire-Coverage-${process.env.INSTALLER_VERSION || '1.1.0'}-x64.msi`);
   const table = (name) => execFileSync('msiinfo', ['export', filename, name], { encoding: 'utf8' });
   const service = table('ServiceInstall');
   assert.match(service, /NSWFireCoverage/);

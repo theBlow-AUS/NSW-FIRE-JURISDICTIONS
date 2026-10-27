@@ -1,11 +1,11 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { AlertTriangle, ChevronRight, Flame, Info, MapPin, Search, X } from 'lucide-react';
-import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 import MapPanel, { type MapPoint } from './MapPanel';
 import CoverageContent from './CoverageContent';
 import {
@@ -23,6 +23,8 @@ import RfsPanel from './RfsPanel';
 
 const queryClient = new QueryClient();
 const isLocalFile = window.location.protocol === 'file:';
+const isStandalone = import.meta.env.VITE_STANDALONE_MODE === 'true';
+const StandaloneWorkspace = lazy(() => import('./StandaloneWorkspace'));
 type ChosenLocation = {
   address: string;
   point: MapPoint;
@@ -178,6 +180,7 @@ function Home() {
           <span className="brand-mark"><Flame size={20} strokeWidth={2.1} /></span>
           <span><span className="brand-name">NSW Fire Coverage</span><span className="brand-kicker">Location checker</span></span>
         </a>
+        {isStandalone && <Link href="/workspace" className="search-button" data-testid="link-gis-workspace">Local GIS &amp; live feeds</Link>}
       </header>
       <main className="page">
         <section className="workspace" aria-label="Fire coverage location checker">
@@ -289,6 +292,7 @@ function Router() {
     <RoutedErrorBoundary>
       <Switch>
         <Route path="/" component={Home} />
+        {isStandalone && <Route path="/workspace"><Suspense fallback={<p role="status">Loading local workspace…</p>}><StandaloneWorkspace /></Suspense></Route>}
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

@@ -6,6 +6,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildFireContext, lookupSpatialContext } from '@workspace/fire-data';
 import { GetFireContextQueryParams, GetFireContextResponse } from '@workspace/api-zod';
 import { createCache, log } from './cache.mjs';
+import { createGisStore, GisError } from './gis-store.mjs';
+import { createLiveFeeds, enrichDangerRatings } from './live-feeds.mjs';
+export { createGisStore, createLiveFeeds };
+export { parseFeed, enrichDangerRatings } from './live-feeds.mjs';
 
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -25,6 +29,7 @@ const MIME = {
   '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png',
   '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
+  '.geojson': 'application/geo+json; charset=utf-8',
 };
 
 export async function loadConfiguration(configPath, defaultsPath) {
@@ -44,10 +49,33 @@ export async function loadConfiguration(configPath, defaultsPath) {
   if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) throw new Error('port must be an integer from 1 to 65535.');
   if (typeof config.dataDirectory !== 'string' || !config.dataDirectory.trim()) throw new Error('dataDirectory is required.');
   if (typeof config.updaterEnabled !== 'boolean') throw new Error('updaterEnabled must be true or false.');
+  if (config.liveFeedsEnabled !== undefined && typeof config.liveFeedsEnabled !== 'boolean') throw new Error('liveFeedsEnabled must be true or false.');
+  if (config.feedPollingSeconds !== undefined) {
+    if (!config.feedPollingSeconds || typeof config.feedPollingSeconds !== 'object' || Array.isArray(config.feedPollingSeconds) ||
+        Object.values(config.feedPollingSeconds).some((value) => !Number.isInteger(value) || value < 60 || value > 604800)) {
+      throw new Error('feedPollingSeconds values must be integers from 60 to 604800.');
+    }
+  }
+  if (config.maxImportBytes !== undefined && (!Number.isSafeInteger(config.maxImportBytes) || config.maxImportBytes < 1024 || config.maxImportBytes > 32 * 1024 ** 3)) {
+    throw new Error('maxImportBytes must be between 1024 bytes and 32 GiB.');
+  }
   return { ...config, dataDirectory: resolve(dirname(filename), config.dataDirectory) };
 }
 
-export function createApplication({ publicDirectory, cache, spatialLookup = lookupSpatialContext }) {
+async function readJson(req) {
+  if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) throw new GisError('Use application/json for this operation.');
+  const parts = [];
+  let size = 0;
+  for await (const part of req) {
+    size += part.length;
+    if (size > 256 * 1024 * 1024) throw new GisError('The working-copy edit exceeds the 256 MiB request limit.', 413);
+    parts.push(part);
+  }
+  try { return JSON.parse(Buffer.concat(parts).toString('utf8')); }
+  catch { throw new GisError('Invalid JSON request.'); }
+}
+
+export function createApplication({ publicDirectory, cache, gis, feeds, spatialLookup = lookupSpatialContext }) {
   const publicRoot = resolve(publicDirectory);
   return http.createServer(async (req, res) => {
     res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
@@ -55,15 +83,84 @@ export function createApplication({ publicDirectory, cache, spatialLookup = look
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Permissions-Policy', 'geolocation=(self)');
     const json = (status, data) => {
-      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.writeHead(status, { 'Content-Type': res.getHeader('Content-Type') || 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(req.method === 'HEAD' ? undefined : JSON.stringify(data));
     };
     try {
+      const url = new URL(req.url, 'http://localhost');
+      if (url.pathname.startsWith('/api/gis/') || url.pathname.startsWith('/api/feeds/')) {
+        if (!gis || !feeds) return json(503, { error: 'The local GIS and feed services are not initialised.' });
+        if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin) {
+          let origin;
+          try { origin = new URL(req.headers.origin); } catch { throw new GisError('Invalid request origin.', 403); }
+          if (origin.host !== req.headers.host || !['http:', 'https:'].includes(origin.protocol)) throw new GisError('Cross-origin changes to the local service are not allowed.', 403);
+        }
+        const p = url.pathname.split('/').filter(Boolean);
+        if (url.pathname === '/api/gis/state' && ['GET', 'HEAD'].includes(req.method)) {
+          return json(200, { projects: gis.list(), feeds: feeds.read() });
+        }
+        if (url.pathname === '/api/feeds/refresh' && req.method === 'POST') {
+          await readJson(req);
+          void feeds.refresh(true).catch((error) => log('error', 'Live feed refresh failed', { error: error.message }));
+          return json(202, { requested: true });
+        }
+        if (url.pathname === '/api/feeds/export' && req.method === 'GET') {
+          const snapshot = feeds.read();
+          const kind = url.searchParams.get('kind') || 'incidents';
+          if (!['incidents', 'updates', 'advisories', 'danger', 'manifest'].includes(kind)) throw new GisError('Unknown feed export type.');
+          if (url.searchParams.get('format') === 'csv' && ['advisories', 'danger'].includes(kind)) {
+            const records = kind === 'danger' ? snapshot.dangerRegions : snapshot.majorFireUpdates.features.map((feature) => feature.properties);
+            const fields = [...new Set(records.flatMap((record) => Object.keys(record || {})))];
+            const cell = (value) => {
+              let valueText = typeof value === 'object' ? JSON.stringify(value) : String(value ?? '');
+              if (/^[=+\-@\t\r]/.test(valueText)) valueText = `'${valueText}`;
+              return `"${valueText.replaceAll('"', '""')}"`;
+            };
+            const csv = [fields.map(cell).join(','), ...records.map((record) => fields.map((field) => cell(record[field])).join(','))].join('\r\n');
+            res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="rfs-${kind}.csv"` });
+            return res.end(csv);
+          }
+          res.setHeader('Content-Disposition', `attachment; filename="rfs-${kind}.${['incidents', 'updates'].includes(kind) ? 'geojson' : 'json'}"`);
+          if (['incidents', 'updates'].includes(kind)) res.setHeader('Content-Type', 'application/geo+json; charset=utf-8');
+          return json(200, kind === 'incidents' ? snapshot.incidents : kind === 'updates' ? snapshot.majorFireUpdates :
+            kind === 'advisories' ? snapshot.majorFireUpdates.features.map((feature) => ({ id: feature.id, ...feature.properties, geometry: feature.geometry })) :
+            kind === 'danger' ? snapshot.dangerRegions : { exportedAt: new Date().toISOString(), sources: snapshot.sources,
+              note: 'Incident geometry is WGS84. Fire danger ratings and bans are regional advisories, not a permit determination.' });
+        }
+        if (url.pathname === '/api/gis/projects' && req.method === 'POST') return json(201, await gis.create((await readJson(req)).name));
+        if (p[1] === 'gis' && p[2] === 'projects' && p[3]) {
+          const projectId = p[3];
+          if (p.length === 4 && req.method === 'PUT') return json(200, await gis.rename(projectId, (await readJson(req)).name));
+          if (p.length === 4 && req.method === 'DELETE') return json(200, await gis.remove(projectId));
+          if (p.length === 5 && p[4] === 'import' && req.method === 'POST') return json(200, await gis.importFiles(projectId, req));
+          if (p[4] === 'layers' && p[5]) {
+            const layerId = p[5];
+            if (p.length === 6 && req.method === 'GET') return json(200, await gis.getLayer(projectId, layerId));
+            if (p.length === 6 && req.method === 'PUT') return json(200, await gis.saveLayer(projectId, layerId, await readJson(req)));
+            if (p.length === 6 && req.method === 'DELETE') return json(200, await gis.removeLayer(projectId, layerId));
+            if (p.length === 7 && p[6] === 'export' && req.method === 'GET') {
+              const councilField = url.searchParams.get('councilField');
+              const current = councilField ? await gis.getLayer(projectId, layerId) : null;
+              if (councilField && !current.fields.includes(councilField)) throw new GisError('The selected council field does not exist.');
+              const feedState = feeds.read();
+              const exported = await gis.exportLayer(projectId, layerId, councilField ? (data) => enrichDangerRatings(data, feedState.dangerRegions, councilField,
+                feedState.sources.filter((source) => source.id.startsWith('danger-'))) : null);
+              if (url.searchParams.get('manifest') === '1') {
+                res.setHeader('Content-Disposition', `attachment; filename="${exported.name}.manifest.json"`);
+                return json(200, exported.manifest);
+              }
+              res.setHeader('Content-Disposition', `attachment; filename="${exported.name}"`);
+              res.setHeader('Content-Type', 'application/geo+json; charset=utf-8');
+              return json(200, exported.data);
+            }
+          }
+        }
+        return json(404, { error: 'Local workspace route not found.' });
+      }
       if (!['GET', 'HEAD'].includes(req.method)) {
         res.setHeader('Allow', 'GET, HEAD');
         return json(405, { error: 'Method not allowed.' });
       }
-      const url = new URL(req.url, 'http://localhost');
       if (url.pathname === '/api/healthz') return json(200, { status: 'ok' });
       if (url.pathname === '/api/rfs/status') return json(200, cache.read().status);
       if (url.pathname === '/api/rfs/snapshot') return json(200, cache.read());
@@ -84,7 +181,7 @@ export function createApplication({ publicDirectory, cache, spatialLookup = look
       if (decoded.includes('\0') || decoded.includes('\\') || decoded.split('/').includes('..')) {
         return json(400, { error: 'Invalid path.' });
       }
-      const relative = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
+      const relative = ['/', '/workspace'].includes(decoded) ? 'index.html' : decoded.replace(/^\/+/, '');
       if (isAbsolute(relative)) return json(400, { error: 'Invalid path.' });
       const filename = resolve(publicRoot, relative);
       if (!filename.startsWith(`${publicRoot}${sep}`)) return json(403, { error: 'Access denied.' });
@@ -106,6 +203,7 @@ export function createApplication({ publicDirectory, cache, spatialLookup = look
       stream.on('error', () => res.destroy());
       stream.pipe(res);
     } catch (error) {
+      if (error instanceof GisError && !res.headersSent) return json(error.status, { error: error.message });
       log('error', 'Request failed', { error: error.message });
       if (!res.headersSent) json(500, { error: 'The local service could not complete this request. Check the service log.' });
       else res.destroy();
@@ -129,8 +227,11 @@ export async function main(args = process.argv.slice(2)) {
     return;
   }
   const publicDirectory = join(dirname(fileURLToPath(import.meta.url)), 'public');
-  const server = createApplication({ publicDirectory, cache });
-  server.requestTimeout = 60000;
+  const gis = createGisStore(config);
+  const feeds = createLiveFeeds(config);
+  await Promise.all([gis.initialise(), feeds.initialise()]);
+  const server = createApplication({ publicDirectory, cache, gis, feeds });
+  server.requestTimeout = 20 * 60 * 1000;
   server.headersTimeout = 15000;
   server.maxHeadersCount = 50;
   server.on('error', (error) => { log('error', 'Local server failed', { error: error.message }); process.exitCode = 1; cache.stop(); });
@@ -140,8 +241,10 @@ export async function main(args = process.argv.slice(2)) {
   });
   log('info', 'NSW Fire Coverage local server started', { host: config.host, port: config.port });
   if (config.updaterEnabled) cache.start();
+  feeds.start();
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
     cache.stop();
+    feeds.stop();
     server.close(() => process.exit(0));
     server.closeIdleConnections();
     setTimeout(() => process.exit(1), 25000).unref();

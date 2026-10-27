@@ -1,0 +1,10 @@
+{
+  "package": "gdal3.js",
+  "version": "2.8.1",
+  "source": "https://github.com/bugra9/gdal3.js/tree/v2.8.1",
+  "files": {
+    "gdal3.node.js": "5d93e6418005ce42f06b63ba693b565cdedda9ca6013fa2cf5d4ff1d60d58fd1",
+    "gdal3WebAssembly.data": "e473e1e9f20af114bbb491d9cf7ef154986708a7ec763b22181c5e5f012f889e",
+    "gdal3WebAssembly.wasm": "350eec4ce9ae4bc10bcafd8621463e057abdbb8f8372f0d8e0af06e6b8561835"
+  }
+}
