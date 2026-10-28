@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[3]
 SOURCE = ROOT / "Stand-alone/macOS"
 OUTPUT = ROOT / "generated-artifacts/standalone-macos"
-PACKAGE = OUTPUT / f"NSW-Fire-Coverage-{os.environ.get('INSTALLER_VERSION', '1.1.0')}-macOS-Intel-AppleSilicon.pkg"
+PACKAGE = OUTPUT / f"NSW-Fire-Coverage-{os.environ.get('INSTALLER_VERSION', '1.2.0')}-macOS-Intel-AppleSilicon.pkg"
 APP_REL = Path("Library/Application Support/NSW Fire Coverage")
 
 

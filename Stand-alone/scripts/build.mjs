@@ -16,7 +16,7 @@ const api = join(root, 'artifacts/api-server');
 const frontendRequire = createRequire(join(frontend, 'package.json'));
 const backendRequire = createRequire(join(api, 'package.json'));
 const lock = JSON.parse(await readFile(join(source, 'dependencies.lock.json'), 'utf8'));
-const version = process.env.INSTALLER_VERSION || '1.1.0';
+const version = process.env.INSTALLER_VERSION || '1.2.0';
 if (!/^\d{1,3}\.\d{1,3}\.\d{1,5}$/.test(version)) throw new Error('INSTALLER_VERSION must be a three-part MSI version.');
 const versionParts = version.split('.').map(Number);
 if (versionParts[0] > 255 || versionParts[1] > 255 || versionParts[2] > 65535) throw new Error('MSI version limits are 255.255.65535.');
@@ -63,6 +63,7 @@ await writeFile(join(payload, 'WINSW-LICENSE.txt'), await licenseResponse.text()
 
 const importFrom = async (require, name) => import(pathToFileURL(require.resolve(name)).href);
 await cp(join(source, 'GIS-WORKSPACE.md'), join(payload, 'GIS-WORKSPACE.md'));
+await cp(join(source, 'RSS-FEEDS.md'), join(payload, 'RSS-FEEDS.md'));
 await cp(join(source, 'GIS-LARGE-LAYERS.md'), join(payload, 'GIS-LARGE-LAYERS.md'));
 const [{ build: viteBuild }, { default: react }, { default: tailwindcss }] = await Promise.all([
   importFrom(frontendRequire, 'vite'), importFrom(frontendRequire, '@vitejs/plugin-react'), importFrom(frontendRequire, '@tailwindcss/vite'),

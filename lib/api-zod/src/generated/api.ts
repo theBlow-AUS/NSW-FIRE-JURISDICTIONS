@@ -9,6 +9,17 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Ingest public HTTPS RSS, Atom, GeoRSS or RFS FireDangerMap XML.
+ */
+export const GetMapFeedQueryParams = zod.object({
+  "url": zod.coerce.string().url(),
+  "refresh": zod.enum(['1']).optional()
+})
+
+export const GetMapFeedResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
  * @summary Check FRNSW coverage before applying LGA-based RFS information
  */
 export const getFireContextQueryLatitudeMin = -90;

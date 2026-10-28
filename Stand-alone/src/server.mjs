@@ -9,6 +9,7 @@ import { GetFireContextQueryParams, GetFireContextResponse } from '@workspace/ap
 import { createCache, log } from './cache.mjs';
 import { createGisStore, GisError } from './gis-store.mjs';
 import { createLiveFeeds, enrichDangerRatings } from './live-feeds.mjs';
+import { createMapFeedService } from '../../artifacts/api-server/src/lib/map-feeds.mjs';
 export { createGisStore, createLiveFeeds };
 export { parseFeed, enrichDangerRatings } from './live-feeds.mjs';
 
@@ -76,7 +77,7 @@ async function readJson(req, maximum = 256 * 1024 * 1024) {
   catch { throw new GisError('Invalid JSON request.'); }
 }
 
-export function createApplication({ publicDirectory, cache, gis, feeds, spatialLookup = lookupSpatialContext }) {
+export function createApplication({ publicDirectory, cache, gis, feeds, mapFeeds = createMapFeedService(), spatialLookup = lookupSpatialContext }) {
   const publicRoot = resolve(publicDirectory);
   return http.createServer(async (req, res) => {
     res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
@@ -89,6 +90,11 @@ export function createApplication({ publicDirectory, cache, gis, feeds, spatialL
     };
     try {
       const url = new URL(req.url, 'http://localhost');
+      if (url.pathname === '/api/map-feeds' && req.method === 'GET') {
+        try { json(200, await mapFeeds.load(url.searchParams.get('url'), url.searchParams.get('refresh') === '1')); }
+        catch (error) { json(error.status || 502, { error: error.message }); }
+        return;
+      }
       if (url.pathname.startsWith('/api/gis/') || url.pathname.startsWith('/api/feeds/')) {
         if (!gis || !feeds) return json(503, { error: 'The local GIS and feed services are not initialised.' });
         if (!['GET', 'HEAD'].includes(req.method) && req.headers.origin) {
@@ -238,7 +244,7 @@ export async function main(args = process.argv.slice(2)) {
   const gis = createGisStore(config);
   const feeds = createLiveFeeds(config);
   await Promise.all([gis.initialise(), feeds.initialise()]);
-  const server = createApplication({ publicDirectory, cache, gis, feeds });
+  const server = createApplication({ publicDirectory, cache, gis, feeds, mapFeeds: createMapFeedService(config) });
   server.requestTimeout = 20 * 60 * 1000;
   server.headersTimeout = 15000;
   server.maxHeadersCount = 50;

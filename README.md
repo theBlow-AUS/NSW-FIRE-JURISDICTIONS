@@ -4,6 +4,8 @@ A map-based checker for looking up a NSW property address or dropping a pin and 
 
 ## Features
 
+- **RSS map layers (website and standalone 1.2.0):** add public HTTPS RSS/Atom/GeoRSS feeds, toggle each overlay and adjust transparency. RFS incidents start off; RFS fire danger starts on at 30% transparency. Settings persist in this browser. See [RSS sources, geometry provenance and limits](Stand-alone/RSS-FEEDS.md).
+
 - Search for a house-number street address with a suburb or postcode using NSW GURAS-backed addressing.
 - Show the matched address on a map so the user can confirm the location.
 - Drop or move a pin on the map to check a location independently of its nearest address.

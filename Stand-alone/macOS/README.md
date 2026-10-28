@@ -1,6 +1,6 @@
 # NSW Fire Coverage — macOS installer
 
-**Release 1.1.0** adds local GIS projects, FileGDB/KML/KMZ imports, working-copy edits, validated GeoJSON exports and five cached live RFS feeds. See [the GIS workspace guide](../GIS-WORKSPACE.md) in this repository; it is also installed as `GIS-WORKSPACE.md` beside this guide.
+**Release 1.2.0** includes configurable RSS/Atom/GeoRSS map layers in addition to local GIS projects and cached RFS feeds. Fire danger is on by default at 30% transparency; incidents are off. The included `RSS-FEEDS.md` and [GIS workspace guide](../GIS-WORKSPACE.md) describe sources and controls.
 
 One self-hosted `.pkg` for **Intel x86-64 and Apple Silicon**, with native runtimes for both. **Default port: 5400.** No Rosetta, separate Node installation, Replit account, Replit database, or Replit runtime connection is required.
 
@@ -17,10 +17,10 @@ This is a local server with live official NSW data calls, **not an internet-disc
 
 ## Install and open
 
-1. Download `NSW-Fire-Coverage-1.1.0-macOS-Intel-AppleSilicon.pkg` and its checksum.
+1. Download `NSW-Fire-Coverage-1.2.0-macOS-Intel-AppleSilicon.pkg` and its checksum.
 2. Verify the SHA-256:
    ```sh
-   shasum -a 256 NSW-Fire-Coverage-1.1.0-macOS-Intel-AppleSilicon.pkg
+   shasum -a 256 NSW-Fire-Coverage-1.2.0-macOS-Intel-AppleSilicon.pkg
    ```
 3. Open the package in Installer and follow your organisation's approval process. Administrator installation is required.
 4. Open **http://localhost:5400/** or the **NSW Fire Coverage** web link installed in Applications.
@@ -28,7 +28,7 @@ This is a local server with live official NSW data calls, **not an internet-disc
 For an approved command-line installation:
 
 ```sh
-sudo /usr/sbin/installer -pkg "/path/to/NSW-Fire-Coverage-1.1.0-macOS-Intel-AppleSilicon.pkg" -target /
+sudo /usr/sbin/installer -pkg "/path/to/NSW-Fire-Coverage-1.2.0-macOS-Intel-AppleSilicon.pkg" -target /
 ```
 
 The installer does not download anything on the target Mac. It installs on the current system volume, starts the local service, and checks its HTTP health endpoint. Neither Python nor a package manager is required on the target.
@@ -156,7 +156,7 @@ The builder verifies Mach-O CPU identities and declared minimum macOS versions, 
 
 Outputs:
 
-- `Stand-alone/dist/NSW-Fire-Coverage-1.1.0-macOS-Intel-AppleSilicon.pkg`
+- `Stand-alone/dist/NSW-Fire-Coverage-1.2.0-macOS-Intel-AppleSilicon.pkg`
 - Matching `.sha256` file.
 - Staging tree and packaging metadata in `generated-artifacts/standalone-macos/`.
 

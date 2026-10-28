@@ -1,6 +1,6 @@
 # Local GIS workspace and RFS feeds
 
-Available in the **1.1.0 standalone installers** for Windows x64 and macOS Intel/Apple Silicon. Open the installed checker and choose **Local GIS & live feeds**, or visit `/workspace`. The hosted checker and double-click `LOCAL HOST` HTML export do not provide this server-backed workspace.
+Available from the **1.1.0 standalone installers** for Windows x64 and macOS Intel/Apple Silicon. Open the installed checker and choose **Local GIS & live feeds**, or visit `/workspace`. The hosted checker and double-click `LOCAL HOST` HTML export do not provide this server-backed workspace. Release 1.2.0 adds [configurable RSS layers](RSS-FEEDS.md) to the main checker map in both website and standalone editions.
 
 ## Local projects
 
@@ -103,4 +103,4 @@ node Stand-alone/macOS/scripts/build.mjs
 python3 Stand-alone/macOS/tests/package_test.py
 ```
 
-`INSTALLER_VERSION` can override the default `1.1.0`. Package outputs go to the ignored `Stand-alone/dist` folder. The source tests cover all five feed formats, failure retention, deduplication, exact council joins, real local import/edit/export persistence, unchanged source bytes, cross-origin rejection, KML/KMZ and multi-layer FileGDB feature datasets. Cross-built packages are inspected on Linux; those checks do not replace native OS installation testing.
+`INSTALLER_VERSION` can override the default `1.2.0`. Package outputs go to the ignored `Stand-alone/dist` folder. The source tests cover all five feed formats, failure retention, deduplication, exact council joins, real local import/edit/export persistence, unchanged source bytes, cross-origin rejection, KML/KMZ and multi-layer FileGDB feature datasets. Cross-built packages are inspected on Linux; those checks do not replace native OS installation testing.

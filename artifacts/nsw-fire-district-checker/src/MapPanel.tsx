@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type CSSProperties } from 'react';
 import { LocateFixed, MapPin, Minus, Plus, X } from 'lucide-react';
+import { useMapFeeds, FeedMapOverlay, FeedControls, type FeedLayer } from './MapFeeds';
+import type { GeoJsonFeature } from './standalone-api';
 
 export type MapPoint = { latitude: number; longitude: number };
 
@@ -33,6 +35,8 @@ function unproject(x: number, y: number, zoom: number): MapPoint {
 }
 
 export default function MapPanel({ point, focusPoint, onPointChange, popup }: Props) {
+  const feeds = useMapFeeds();
+  const [selectedFeed, setSelectedFeed] = useState<{ feature: GeoJsonFeature; layer: FeedLayer } | null>(null);
   const [center, setCenter] = useState<MapPoint>(DEFAULT_CENTER);
   const [zoom, setZoom] = useState(10);
   const [dragging, setDragging] = useState(false);
@@ -162,6 +166,10 @@ export default function MapPanel({ point, focusPoint, onPointChange, popup }: Pr
             ))}
           </div>
           <div className="map-wash" />
+          <FeedMapOverlay model={feeds} width={dimensions.width} height={dimensions.height} position={(lon, lat) => {
+            const world = project(lat, lon, zoom), origin = project(center.latitude, center.longitude, zoom);
+            return [world.x - origin.x + dimensions.width / 2, world.y - origin.y + dimensions.height / 2];
+          }} onSelect={(feature, layer) => setSelectedFeed({ feature, layer })} />
           {pinPosition && (
             <button type="button" className="map-pin" aria-label="Show coverage result" data-testid="map-location-pin"
               onPointerDown={(event) => event.stopPropagation()}
@@ -203,6 +211,10 @@ export default function MapPanel({ point, focusPoint, onPointChange, popup }: Pr
         <span><LocateFixed size={12} /> {displayedPoint ? 'Location selected' : 'Map centered on Sydney'}</span>
         <span>Map data © NSW Department of Customer Service</span>
       </div>
+      <FeedControls model={feeds} selected={selectedFeed ? {
+        ...selectedFeed,
+        feature: feeds.states[selectedFeed.layer.id]?.data?.collection.features.find((f) => f.id === selectedFeed.feature.id) || selectedFeed.feature,
+      } : null} clearSelected={() => setSelectedFeed(null)} onSelect={(feature, layer) => setSelectedFeed({ feature, layer })} />
     </div>
   );
 }

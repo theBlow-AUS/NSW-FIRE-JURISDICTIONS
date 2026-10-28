@@ -10,7 +10,7 @@ const output = join(root, 'generated-artifacts/standalone-macos');
 const tree = join(output, 'root');
 const app = join(tree, 'Library/Application Support/NSW Fire Coverage');
 const lock = JSON.parse(await readFile(join(source, 'dependencies.lock.json'), 'utf8'));
-const version = process.env.INSTALLER_VERSION || '1.1.0';
+const version = process.env.INSTALLER_VERSION || '1.2.0';
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('INSTALLER_VERSION must be a three-part version.');
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -22,6 +22,7 @@ const shared = join(output, 'shared/payload');
 await cp(join(shared, 'app'), join(app, 'app'), { recursive: true });
 await cp(join(shared, 'THIRD-PARTY-NOTICES.txt'), join(app, 'THIRD-PARTY-NOTICES.txt'));
 await cp(join(shared, 'GIS-WORKSPACE.md'), join(app, 'GIS-WORKSPACE.md'));
+await cp(join(shared, 'RSS-FEEDS.md'), join(app, 'RSS-FEEDS.md'));
 await cp(join(shared, 'GIS-LARGE-LAYERS.md'), join(app, 'GIS-LARGE-LAYERS.md'));
 for (const directory of ['config', 'bin', 'operator']) await cp(join(source, directory), join(app, directory), { recursive: true });
 await writeFile(join(app, 'README.md'), (await readFile(join(source, 'README.md'), 'utf8')).replace('](../GIS-WORKSPACE.md)', '](GIS-WORKSPACE.md)'));

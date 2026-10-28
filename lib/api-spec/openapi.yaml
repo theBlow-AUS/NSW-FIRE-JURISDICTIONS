@@ -11,6 +11,34 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /map-feeds:
+    get:
+      operationId: getMapFeed
+      summary: Ingest public HTTPS RSS, Atom, GeoRSS or RFS FireDangerMap XML.
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+            format: uri
+        - in: query
+          name: refresh
+          schema:
+            type: string
+            enum: ['1']
+      responses:
+        '200':
+          description: Normalized GeoJSON entries with source dates, geometry provenance and stale warnings.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid or unsafe feed URL or document.
+        '502':
+          description: Feed unavailable and no last-good snapshot exists.
   /fire-context:
     get:
       operationId: getFireContext

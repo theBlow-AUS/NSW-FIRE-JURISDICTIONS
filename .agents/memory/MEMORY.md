@@ -1,6 +1,7 @@
 - [NSW fire checker rules](fire-coverage.md) — GURAS addressing, map-first layout, and safe interpretation of FRNSW/RFD coverage.
 - [Local HTML exports](local-html-exports.md) — locked-down SoE needs a double-click HTML in LOCAL HOST, with no Node/server; live data calls are allowed.
 - [RFS dated sources](rfs-source-interpretation.md) — preserve permit-table wording; blocked refreshes retain dated data with visible warnings, including local exports.
+- [RSS map overlays](rss-map-overlays.md) — incidents start off; fire danger starts on at 30% transparency; visibility and added feeds are per-browser.
 - [FRNSW station contacts](frnsw-station-contacts.md) — use the public locations layer for nearby stations; phone details live on official profiles, not the layer.
 - [Standalone Windows distribution](standalone-windows.md) — Server 2022/Windows 10 x64 MSI must be Replit-independent; live NSW services remain allowed.
 - [macOS standalone distribution](standalone-macos.md) — native Intel/Apple Silicon, port 5400, no Replit runtime; distinguish binary compatibility from OS security support.

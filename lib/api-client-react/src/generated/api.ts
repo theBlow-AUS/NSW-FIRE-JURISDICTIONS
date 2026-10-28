@@ -18,6 +18,8 @@ import type {
 import type {
   FireContext,
   GetFireContextParams,
+  GetMapFeed200,
+  GetMapFeedParams,
   HealthStatus,
   RfsSnapshotOutput,
   RfsUpdateStatus
@@ -49,6 +51,90 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetMapFeedUrl = (params: GetMapFeedParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/map-feeds?${stringifiedParams}` : `/api/map-feeds`
+}
+
+/**
+ * @summary Ingest public HTTPS RSS, Atom, GeoRSS or RFS FireDangerMap XML.
+ */
+export const getMapFeed = async (params: GetMapFeedParams, options?: Parameters<typeof customFetch>[1]): Promise<GetMapFeed200> => {
+
+  return customFetch<GetMapFeed200>(getGetMapFeedUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMapFeedQueryKey = (params?: GetMapFeedParams,) => {
+    return [
+    `/api/map-feeds`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMapFeedQueryOptions = <TData = Awaited<ReturnType<typeof getMapFeed>>, TError = ErrorType<void>>(params: GetMapFeedParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMapFeed>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMapFeedQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMapFeed>>> = ({ signal }) => getMapFeed(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMapFeed>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMapFeedQueryResult = NonNullable<Awaited<ReturnType<typeof getMapFeed>>>
+export type GetMapFeedQueryError = ErrorType<void>
+
+
+/**
+ * @summary Ingest public HTTPS RSS, Atom, GeoRSS or RFS FireDangerMap XML.
+ */
+
+export function useGetMapFeed<TData = Awaited<ReturnType<typeof getMapFeed>>, TError = ErrorType<void>>(
+ params: GetMapFeedParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMapFeed>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMapFeedQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetFireContextUrl = (params: GetFireContextParams,) => {
   const normalizedParams = new URLSearchParams();

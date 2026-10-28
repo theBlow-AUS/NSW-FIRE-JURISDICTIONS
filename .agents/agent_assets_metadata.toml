@@ -98,3 +98,31 @@ mtime_ms = 1793134488503
 storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/ea93f072-b547-407d-9aae-b02a4335cd48/2b649edc-9af9-4960-86b1-6dff9236b17a"
 storage_version_token = "1793134666896648"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "tt5YqG_kVpRlD_91zK0iZ"
+uri = "file://Stand-alone/dist/NSW-Fire-Coverage-1.2.0-x64.msi"
+type = "unspecified"
+title = "Windows x64 installer — 1.2.0"
+description = "Configurable RSS/GeoRSS map layers; fire danger on at 30% transparency, incidents off. Default port 8080. Unsigned installer."
+logical_id = "0ecc505c-8cc2-404a-9b85-5ab7e419fd47"
+content_hash = "sha256:18c1675d8230105aae08167f7d0eda0e18b6107b8ac0b811cbb6a6943037ad67"
+size = 49019904
+mtime_ms = 1793221963716
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/0ecc505c-8cc2-404a-9b85-5ab7e419fd47/bed4a57e-56e3-43ab-acc2-6c8a0a00a998"
+storage_version_token = "1793222367862627"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "Rji9JXq7Noj7yda-9bJB6"
+uri = "file://Stand-alone/dist/NSW-Fire-Coverage-1.2.0-macOS-Intel-AppleSilicon.pkg"
+type = "unspecified"
+title = "macOS Intel + Apple Silicon — 1.2.0"
+description = "Configurable RSS/GeoRSS map layers with native runtimes for both Mac architectures. Port 5400. Unsigned and not notarized."
+logical_id = "361fab5a-6a30-48c5-9b6d-5671e7349c15"
+content_hash = "sha256:c52b41709918cdc425b491115cf6fdebe1d6596a83c5028100b0a41246990540"
+size = 87726606
+mtime_ms = 1793222122368
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:9d96ba62-cc7f-49d2-be1c-8521b3055a75/361fab5a-6a30-48c5-9b6d-5671e7349c15/6d85d974-6aad-454a-aae1-8974d2f600ae"
+storage_version_token = "1793222370481354"
+content_type = "application/octet-stream"

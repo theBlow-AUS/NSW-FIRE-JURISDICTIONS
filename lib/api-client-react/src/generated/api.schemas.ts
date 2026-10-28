@@ -78,6 +78,20 @@ export interface HealthStatus {
   status: string;
 }
 
+export type GetMapFeedParams = {
+url: string;
+refresh?: GetMapFeedRefresh;
+};
+
+export type GetMapFeedRefresh = typeof GetMapFeedRefresh[keyof typeof GetMapFeedRefresh];
+
+
+export const GetMapFeedRefresh = {
+  NUMBER_1: '1',
+} as const;
+
+export type GetMapFeed200 = { [key: string]: unknown };
+
 export type GetFireContextParams = {
 /**
  * @minimum -90
