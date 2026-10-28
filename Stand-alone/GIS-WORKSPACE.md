@@ -1,3 +1,11 @@
+# Installer upgrade safety
+
+Before managed rollout, complete the [native installation and upgrade pilot](tests/NATIVE-UPGRADE-PILOT.md)
+on Windows Server 2022, Windows 10 x64, Intel Mac and Apple Silicon Mac.
+Linux package inspection is not native upgrade evidence. The pilot includes
+administrator backup steps, repeatable smoke-test commands and an explicit
+coverage/sign-off record.
+
 # Local GIS workspace and RFS feeds
 
 Available from the **1.1.0 standalone installers** for Windows x64 and macOS Intel/Apple Silicon. Open the installed checker and choose **Local GIS & live feeds**, or visit `/workspace`. The hosted checker and double-click `LOCAL HOST` HTML export do not provide this server-backed workspace. Release 1.2.0 adds [configurable RSS layers](RSS-FEEDS.md) to the main checker map in both website and standalone editions.
